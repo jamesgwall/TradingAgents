@@ -293,6 +293,43 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     ]
 
 
+def select_thinking_tier(tier_label: str) -> dict:
+    """Interactively select provider, model, and provider-specific config for one thinking tier.
+
+    Args:
+        tier_label: Human-readable label shown in prompts, e.g. "Quick" or "Deep".
+
+    Returns:
+        dict with keys: provider, backend_url, model, provider_kwargs
+    """
+    mode = "quick" if tier_label.lower() == "quick" else "deep"
+
+    provider, url = select_llm_provider()
+    model = _select_model(provider, mode)
+
+    provider_kwargs = {}
+    provider_lower = provider.lower()
+    if provider_lower == "google":
+        thinking_level = ask_gemini_thinking_config()
+        if thinking_level:
+            provider_kwargs["thinking_level"] = thinking_level
+    elif provider_lower == "openai":
+        reasoning_effort = ask_openai_reasoning_effort()
+        if reasoning_effort:
+            provider_kwargs["reasoning_effort"] = reasoning_effort
+    elif provider_lower == "anthropic":
+        effort = ask_anthropic_effort()
+        if effort:
+            provider_kwargs["effort"] = effort
+
+    return {
+        "provider": provider,
+        "backend_url": url,
+        "model": model,
+        "provider_kwargs": provider_kwargs,
+    }
+
+
 def provider_default_url(provider_key: str) -> str | None:
     """Return the default backend URL for a provider key, or None if unknown."""
     key = provider_key.lower()
