@@ -228,6 +228,43 @@ def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
 
+
+def select_thinking_tier(tier_label: str) -> dict:
+    """Interactively select provider, model, and provider-specific config for one thinking tier.
+
+    Args:
+        tier_label: Human-readable label shown in prompts, e.g. "Quick" or "Deep".
+
+    Returns:
+        dict with keys: provider, backend_url, model, provider_kwargs
+    """
+    mode = "quick" if tier_label.lower() == "quick" else "deep"
+
+    provider, url = select_llm_provider()
+    model = _select_model(provider, mode)
+
+    provider_kwargs = {}
+    provider_lower = provider.lower()
+    if provider_lower == "google":
+        thinking_level = ask_gemini_thinking_config()
+        if thinking_level:
+            provider_kwargs["thinking_level"] = thinking_level
+    elif provider_lower == "openai":
+        reasoning_effort = ask_openai_reasoning_effort()
+        if reasoning_effort:
+            provider_kwargs["reasoning_effort"] = reasoning_effort
+    elif provider_lower == "anthropic":
+        effort = ask_anthropic_effort()
+        if effort:
+            provider_kwargs["effort"] = effort
+
+    return {
+        "provider": provider,
+        "backend_url": url,
+        "model": model,
+        "provider_kwargs": provider_kwargs,
+    }
+
 def select_llm_provider() -> tuple[str, str | None]:
     """Select the LLM provider and its API endpoint."""
     # (display_name, provider_key, base_url)

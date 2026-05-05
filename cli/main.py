@@ -548,66 +548,37 @@ def get_user_selections():
     )
     selected_research_depth = select_research_depth()
 
-    # Step 6: LLM Provider
+    # Step 6: Quick-Thinking LLM (provider + model + provider-specific config)
     console.print(
         create_question_box(
-            "Step 6: LLM Provider", "Select your LLM provider"
+            "Step 6: Quick-Thinking LLM",
+            "Select the provider and model used for fast analysis (analysts, researchers, trader, risk debaters)",
         )
     )
-    selected_llm_provider, backend_url = select_llm_provider()
+    quick_tier = select_thinking_tier("Quick")
 
-    # Step 7: Thinking agents
+    # Step 7: Deep-Thinking LLM (provider + model + provider-specific config)
     console.print(
         create_question_box(
-            "Step 7: Thinking Agents", "Select your thinking agents for analysis"
+            "Step 7: Deep-Thinking LLM",
+            "Select the provider and model used for deep reasoning (Research Manager, Portfolio Manager)",
         )
     )
-    selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
-    selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
-
-    # Step 8: Provider-specific thinking configuration
-    thinking_level = None
-    reasoning_effort = None
-    anthropic_effort = None
-
-    provider_lower = selected_llm_provider.lower()
-    if provider_lower == "google":
-        console.print(
-            create_question_box(
-                "Step 8: Thinking Mode",
-                "Configure Gemini thinking mode"
-            )
-        )
-        thinking_level = ask_gemini_thinking_config()
-    elif provider_lower == "openai":
-        console.print(
-            create_question_box(
-                "Step 8: Reasoning Effort",
-                "Configure OpenAI reasoning effort level"
-            )
-        )
-        reasoning_effort = ask_openai_reasoning_effort()
-    elif provider_lower == "anthropic":
-        console.print(
-            create_question_box(
-                "Step 8: Effort Level",
-                "Configure Claude effort level"
-            )
-        )
-        anthropic_effort = ask_anthropic_effort()
+    deep_tier = select_thinking_tier("Deep")
 
     return {
         "ticker": selected_ticker,
         "analysis_date": analysis_date,
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
-        "llm_provider": selected_llm_provider.lower(),
-        "backend_url": backend_url,
-        "shallow_thinker": selected_shallow_thinker,
-        "deep_thinker": selected_deep_thinker,
-        "google_thinking_level": thinking_level,
-        "openai_reasoning_effort": reasoning_effort,
-        "anthropic_effort": anthropic_effort,
+        "quick_llm_provider": quick_tier["provider"].lower(),
+        "quick_backend_url": quick_tier["backend_url"],
+        "shallow_thinker": quick_tier["model"],
+        "quick_provider_kwargs": quick_tier["provider_kwargs"],
+        "deep_llm_provider": deep_tier["provider"].lower(),
+        "deep_backend_url": deep_tier["backend_url"],
+        "deep_thinker": deep_tier["model"],
+        "deep_provider_kwargs": deep_tier["provider_kwargs"],
         "output_language": output_language,
     }
 
@@ -936,12 +907,12 @@ def run_analysis(checkpoint: bool = False):
     config["max_risk_discuss_rounds"] = selections["research_depth"]
     config["quick_think_llm"] = selections["shallow_thinker"]
     config["deep_think_llm"] = selections["deep_thinker"]
-    config["backend_url"] = selections["backend_url"]
-    config["llm_provider"] = selections["llm_provider"].lower()
-    # Provider-specific thinking configuration
-    config["google_thinking_level"] = selections.get("google_thinking_level")
-    config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
-    config["anthropic_effort"] = selections.get("anthropic_effort")
+    config["quick_llm_provider"] = selections["quick_llm_provider"]
+    config["quick_backend_url"] = selections["quick_backend_url"]
+    config["quick_provider_kwargs"] = selections.get("quick_provider_kwargs", {})
+    config["deep_llm_provider"] = selections["deep_llm_provider"]
+    config["deep_backend_url"] = selections["deep_backend_url"]
+    config["deep_provider_kwargs"] = selections.get("deep_provider_kwargs", {})
     config["output_language"] = selections.get("output_language", "English")
     config["checkpoint_enabled"] = checkpoint
 

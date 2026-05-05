@@ -20,6 +20,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 RUN useradd --create-home appuser
 USER appuser
+RUN mkdir -p /home/appuser/.tradingagents
 WORKDIR /home/appuser/app
 
 COPY --from=builder --chown=appuser:appuser /build .
