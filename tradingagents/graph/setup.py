@@ -53,6 +53,13 @@ class GraphSetup:
             "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
         }
 
+        if "transcript" in selected_analysts:
+            analyst_nodes["transcript"] = create_transcript_analyst(
+                self.quick_thinking_llm
+            )
+            delete_nodes["transcript"] = create_msg_delete()
+            tool_nodes["transcript"] = self.tool_nodes["transcript"]
+
         # Create researcher and manager nodes
         bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
         bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)

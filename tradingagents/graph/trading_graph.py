@@ -197,6 +197,9 @@ class TradingAgentsGraph:
                     get_income_statement,
                 ]
             ),
+            # Transcript analyst never makes LangGraph tool calls; this node
+            # exists to satisfy the graph pattern but is never routed to.
+            "transcript": ToolNode([]),
         }
 
     def _resolve_benchmark(self, ticker: str) -> str:
