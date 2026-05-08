@@ -37,8 +37,9 @@ def create_transcript_analyst(llm):
             stub = TRANSCRIPT_STUB_MARKER
             return {"messages": [AIMessage(content=stub)], "transcript_report": stub}
 
-        store = TranscriptStore()
+        store = None
         try:
+            store = TranscriptStore()
             # Step 1: use quick_llm to generate a targeted macro query
             macro_prompt = (
                 f"You are a financial analyst. Write a single concise semantic search query "
@@ -95,10 +96,14 @@ def create_transcript_analyst(llm):
             )
 
         except Exception as e:
-            log.warning(f"Transcript analyst error for {ticker}: {e}")
+            log.warning(f"Transcript analyst unavailable for {ticker} — DB or Ollama unreachable: {e}", exc_info=True)
             report = TRANSCRIPT_STUB_MARKER
         finally:
-            store.close()
+            if store is not None:
+                try:
+                    store.close()
+                except Exception:
+                    pass
 
         return {"messages": [AIMessage(content=report)], "transcript_report": report}
 
