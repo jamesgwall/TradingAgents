@@ -305,6 +305,22 @@ def select_thinking_tier(tier_label: str) -> dict:
     mode = "quick" if tier_label.lower() == "quick" else "deep"
 
     provider, url = select_llm_provider()
+
+    # Providers with regional endpoints need a secondary prompt so the main
+    # dropdown stays clean (mainland China and international accounts cannot
+    # share API keys).
+    provider_lower = provider.lower()
+    if provider_lower == "qwen":
+        provider, url = ask_qwen_region()
+    elif provider_lower == "minimax":
+        provider, url = ask_minimax_region()
+    elif provider_lower == "glm":
+        provider, url = ask_glm_region()
+    elif provider_lower == "ollama":
+        confirm_ollama_endpoint(url)
+
+    ensure_api_key(provider.lower())
+
     model = _select_model(provider, mode)
 
     provider_kwargs = {}
