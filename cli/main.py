@@ -553,26 +553,6 @@ def get_user_selections():
     )
     quick_tier = select_thinking_tier("Quick")
 
-    # Providers with regional endpoints prompt for the region as a secondary
-    # step so the main dropdown stays clean (mainland China and international
-    # accounts cannot share API keys).
-    if selected_llm_provider == "qwen":
-        selected_llm_provider, backend_url = ask_qwen_region()
-    elif selected_llm_provider == "minimax":
-        selected_llm_provider, backend_url = ask_minimax_region()
-    elif selected_llm_provider == "glm":
-        selected_llm_provider, backend_url = ask_glm_region()
-
-    # For Ollama, surface the resolved endpoint (OLLAMA_BASE_URL vs default)
-    # before model selection so it's obvious where we're connecting.
-    if selected_llm_provider == "ollama":
-        confirm_ollama_endpoint(backend_url)
-
-    # Confirm the provider's API key is present; prompt the user to paste
-    # one and persist it to .env if it's missing, so the analysis run
-    # doesn't fail later at the first API call.
-    ensure_api_key(selected_llm_provider)
-
     # Step 7: Deep-Thinking LLM (provider + model + provider-specific config)
     console.print(
         create_question_box(

@@ -171,8 +171,9 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("Custom model ID", "custom"),
         ],
         "deep": [
-            ("gemma4:e2b", "gemma4:e2b"),
+            ("gemma4:26b", "gemma4:26b"),
             ("gemma4:latest", "gemma4:latest"),
+            ("gemma4:e2b", "gemma4:e2b"),
             ("GLM-4.7-Flash:latest (30B)", "glm-4.7-flash:latest"),
             ("GPT-OSS:latest (20B)", "gpt-oss:latest"),
             ("Qwen3:latest (8B)", "qwen3:latest"),
