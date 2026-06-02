@@ -20,10 +20,13 @@ def _reload_with_env(monkeypatch, **overrides):
 
 def test_no_env_uses_built_in_defaults(monkeypatch):
     dc = _reload_with_env(monkeypatch)
-    assert dc.DEFAULT_CONFIG["llm_provider"] == "openai"
+    # Provider/URL config is per-tier; both tiers default to openai with no URL.
+    assert dc.DEFAULT_CONFIG["quick_llm_provider"] == "openai"
+    assert dc.DEFAULT_CONFIG["deep_llm_provider"] == "openai"
     assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gpt-5.5"
     assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gpt-5.4-mini"
-    assert dc.DEFAULT_CONFIG["backend_url"] is None
+    assert dc.DEFAULT_CONFIG["quick_backend_url"] is None
+    assert dc.DEFAULT_CONFIG["deep_backend_url"] is None
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
 
@@ -37,10 +40,13 @@ def test_string_overrides(monkeypatch):
         TRADINGAGENTS_LLM_BACKEND_URL="https://example.invalid/v1",
         TRADINGAGENTS_OUTPUT_LANGUAGE="Chinese",
     )
-    assert dc.DEFAULT_CONFIG["llm_provider"] == "google"
+    # The convenience provider/URL env vars fan out to both thinking tiers.
+    assert dc.DEFAULT_CONFIG["quick_llm_provider"] == "google"
+    assert dc.DEFAULT_CONFIG["deep_llm_provider"] == "google"
     assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gemini-3-pro-preview"
     assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gemini-3-flash-preview"
-    assert dc.DEFAULT_CONFIG["backend_url"] == "https://example.invalid/v1"
+    assert dc.DEFAULT_CONFIG["quick_backend_url"] == "https://example.invalid/v1"
+    assert dc.DEFAULT_CONFIG["deep_backend_url"] == "https://example.invalid/v1"
     assert dc.DEFAULT_CONFIG["output_language"] == "Chinese"
 
 
@@ -75,7 +81,8 @@ def test_empty_env_value_is_passthrough(monkeypatch):
         TRADINGAGENTS_LLM_PROVIDER="",
         TRADINGAGENTS_MAX_DEBATE_ROUNDS="",
     )
-    assert dc.DEFAULT_CONFIG["llm_provider"] == "openai"
+    assert dc.DEFAULT_CONFIG["quick_llm_provider"] == "openai"
+    assert dc.DEFAULT_CONFIG["deep_llm_provider"] == "openai"
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1
 
 

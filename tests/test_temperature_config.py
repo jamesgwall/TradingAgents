@@ -62,10 +62,12 @@ class TestProviderKwargsTemperature:
 
     def _kwargs_for(self, temperature):
         from tradingagents.graph.trading_graph import TradingAgentsGraph
-        # Call the method without constructing the full graph.
+        # Call the method without constructing the full graph. Temperature is a
+        # cross-provider knob applied to both tiers, so the tier choice here is
+        # arbitrary — "deep" just exercises the per-tier signature.
         graph = TradingAgentsGraph.__new__(TradingAgentsGraph)
-        graph.config = {"llm_provider": "openai", "temperature": temperature}
-        return TradingAgentsGraph._get_provider_kwargs(graph)
+        graph.config = {"deep_llm_provider": "openai", "temperature": temperature}
+        return TradingAgentsGraph._get_provider_kwargs(graph, "deep")
 
     def test_float_string_coerced(self):
         assert self._kwargs_for("0.3")["temperature"] == 0.3

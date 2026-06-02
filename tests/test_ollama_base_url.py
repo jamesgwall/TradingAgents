@@ -165,12 +165,20 @@ def test_confirm_endpoint_quiet_on_local_no_port(monkeypatch, capsys):
     assert "Note" not in out  # localhost is fine without explicit port
 
 
-def test_ollama_model_labels_no_local_suffix():
-    """Labels should no longer claim '(local)' since the endpoint is dynamic."""
+def test_ollama_model_labels_mark_local():
+    """Ollama labels carry a '(local)' marker.
+
+    This fork keeps the explicit '(local)' tag on the curated Ollama models
+    (gemma4/qwen3/gpt-oss/glm) so they read clearly against the cloud
+    providers in the same dropdown. The 'Custom model ID' sentinel is the
+    one entry that legitimately has no marker.
+    """
     from tradingagents.llm_clients.model_catalog import get_model_options
     for mode in ("quick", "deep"):
-        labels = [label for label, _ in get_model_options("ollama", mode)]
-        assert all("local" not in label for label in labels), labels
+        entries = get_model_options("ollama", mode)
+        curated = [label for label, value in entries if value != "custom"]
+        assert curated, f"Ollama {mode!r} has no curated models: {entries}"
+        assert all("local" in label.lower() for label in curated), curated
 
 
 def test_ollama_offers_custom_model_id():

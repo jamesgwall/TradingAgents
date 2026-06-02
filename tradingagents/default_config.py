@@ -7,11 +7,17 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # entry-point script changes required. Coercion is driven by the type
 # of the existing default, so users can keep writing plain strings in
 # their .env file.
+#
+# A value may be a single config key or a tuple of keys. The provider/URL
+# config is per-tier (quick + deep), so the convenience env vars fan out to
+# both tiers — TRADINGAGENTS_LLM_PROVIDER=google sets quick and deep at once.
+# Use the per-tier config keys directly (or a future per-tier env var) when
+# the two tiers need different providers.
 _ENV_OVERRIDES = {
-    "TRADINGAGENTS_LLM_PROVIDER":         "llm_provider",
+    "TRADINGAGENTS_LLM_PROVIDER":         ("quick_llm_provider", "deep_llm_provider"),
+    "TRADINGAGENTS_LLM_BACKEND_URL":      ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
-    "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
@@ -34,11 +40,14 @@ def _coerce(value: str, reference):
 
 def _apply_env_overrides(config: dict) -> dict:
     """Apply TRADINGAGENTS_* env vars to the config dict in-place."""
-    for env_var, key in _ENV_OVERRIDES.items():
+    for env_var, keys in _ENV_OVERRIDES.items():
         raw = os.environ.get(env_var)
         if raw is None or raw == "":
             continue
-        config[key] = _coerce(raw, config.get(key))
+        if isinstance(keys, str):
+            keys = (keys,)
+        for key in keys:
+            config[key] = _coerce(raw, config.get(key))
     return config
 
 
