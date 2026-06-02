@@ -12,7 +12,7 @@ from tradingagents.llm_clients.model_catalog import get_model_options
 
 console = Console()
 
-TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK"
+TICKER_INPUT_EXAMPLES = "SPY, 0700.HK, BTC-USD"
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -25,10 +25,19 @@ CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
 
 
 def get_ticker() -> str:
-    """Prompt the user to enter a ticker symbol."""
+    """Prompt the user to enter a ticker symbol, preserving exchange suffixes.
+
+    Uses questionary.text (not typer.prompt, which strips trailing dot-suffixes
+    like ``000404.SH`` on some shells) and validates the symbol charset so an
+    obvious typo is caught before the run starts.
+    """
     ticker = questionary.text(
-        f"Enter the exact ticker symbol to analyze ({TICKER_INPUT_EXAMPLES}):",
-        validate=lambda x: len(x.strip()) > 0 or "Please enter a valid ticker symbol.",
+        f"Enter ticker symbol (e.g. {TICKER_INPUT_EXAMPLES}):",
+        validate=lambda x: (
+            not x.strip()
+            or (all(ch.isalnum() or ch in "._-^" for ch in x.strip()) and len(x.strip()) <= 32)
+            or "Please enter a valid ticker symbol, e.g. AAPL, 000404.SZ, 0700.HK."
+        ),
         style=questionary.Style(
             [
                 ("text", "fg:green"),
@@ -37,11 +46,11 @@ def get_ticker() -> str:
         ),
     ).ask()
 
-    if not ticker:
+    if ticker is None:
         console.print("\n[red]No ticker symbol provided. Exiting...[/red]")
         exit(1)
 
-    return normalize_ticker_symbol(ticker)
+    return normalize_ticker_symbol(ticker) if ticker.strip() else "SPY"
 
 
 def normalize_ticker_symbol(ticker: str) -> str:
@@ -259,6 +268,30 @@ def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
 
+def _llm_provider_table() -> list[tuple[str, str, str | None]]:
+    """(display_name, provider_key, base_url) for every supported provider.
+
+    Shared by the interactive picker and by env-driven configuration so an
+    env-set provider resolves to the same default endpoint the menu uses.
+    Ollama users can point at a remote ollama-serve via OLLAMA_BASE_URL
+    (convention from the broader Ollama ecosystem); falls back to the
+    localhost default when unset.
+    """
+    ollama_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
+    return [
+        ("OpenAI", "openai", "https://api.openai.com/v1"),
+        ("Google", "google", None),
+        ("Anthropic", "anthropic", "https://api.anthropic.com/"),
+        ("xAI", "xai", "https://api.x.ai/v1"),
+        ("DeepSeek", "deepseek", "https://api.deepseek.com"),
+        ("Qwen", "qwen", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
+        ("MiniMax", "minimax", "https://api.minimax.io/v1"),
+        ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),
+        ("Azure OpenAI", "azure", None),
+        ("Ollama", "ollama", ollama_url),
+    ]
+
 
 def select_thinking_tier(tier_label: str) -> dict:
     """Interactively select provider, model, and provider-specific config for one thinking tier.
@@ -312,26 +345,19 @@ def select_thinking_tier(tier_label: str) -> dict:
         "provider_kwargs": provider_kwargs,
     }
 
+
+def provider_default_url(provider_key: str) -> str | None:
+    """Return the default backend URL for a provider key, or None if unknown."""
+    key = provider_key.lower()
+    for _, pk, url in _llm_provider_table():
+        if pk == key:
+            return url
+    return None
+
+
 def select_llm_provider() -> tuple[str, str | None]:
     """Select the LLM provider and its API endpoint."""
-    # Ollama users can point at a remote ollama-serve via OLLAMA_BASE_URL
-    # (convention from the broader Ollama ecosystem); falls back to the
-    # localhost default when unset.
-    ollama_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
-    # (display_name, provider_key, base_url)
-    PROVIDERS = [
-        ("OpenAI", "openai", "https://api.openai.com/v1"),
-        ("Google", "google", None),
-        ("Anthropic", "anthropic", "https://api.anthropic.com/"),
-        ("xAI", "xai", "https://api.x.ai/v1"),
-        ("DeepSeek", "deepseek", "https://api.deepseek.com"),
-        ("Qwen", "qwen", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
-        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
-        ("MiniMax", "minimax", "https://api.minimax.io/v1"),
-        ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),
-        ("Azure OpenAI", "azure", None),
-        ("Ollama", "ollama", ollama_url),
-    ]
+    PROVIDERS = _llm_provider_table()
 
     choice = questionary.select(
         "Select your LLM Provider:",

@@ -7,16 +7,23 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # entry-point script changes required. Coercion is driven by the type
 # of the existing default, so users can keep writing plain strings in
 # their .env file.
+#
+# A value may be a single config key or a tuple of keys. The provider/URL
+# config is per-tier (quick + deep), so the convenience env vars fan out to
+# both tiers — TRADINGAGENTS_LLM_PROVIDER=google sets quick and deep at once.
+# Use the per-tier config keys directly (or a future per-tier env var) when
+# the two tiers need different providers.
 _ENV_OVERRIDES = {
-    "TRADINGAGENTS_LLM_PROVIDER":         "llm_provider",
+    "TRADINGAGENTS_LLM_PROVIDER":         ("quick_llm_provider", "deep_llm_provider"),
+    "TRADINGAGENTS_LLM_BACKEND_URL":      ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
-    "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
+    "TRADINGAGENTS_TEMPERATURE":          "temperature",
 }
 
 
@@ -33,11 +40,14 @@ def _coerce(value: str, reference):
 
 def _apply_env_overrides(config: dict) -> dict:
     """Apply TRADINGAGENTS_* env vars to the config dict in-place."""
-    for env_var, key in _ENV_OVERRIDES.items():
+    for env_var, keys in _ENV_OVERRIDES.items():
         raw = os.environ.get(env_var)
         if raw is None or raw == "":
             continue
-        config[key] = _coerce(raw, config.get(key))
+        if isinstance(keys, str):
+            keys = (keys,)
+        for key in keys:
+            config[key] = _coerce(raw, config.get(key))
     return config
 
 
@@ -56,9 +66,18 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "quick_backend_url": None,
     "quick_provider_kwargs": {},        # e.g. {"reasoning_effort": "low"} for openai
     "deep_llm_provider": "openai",
-    "deep_think_llm": "gpt-5.4",
+    "deep_think_llm": "gpt-5.5",
     "deep_backend_url": None,
     "deep_provider_kwargs": {},         # e.g. {"thinking_level": "high"} for google
+    # Provider-specific thinking configuration (also storable in quick/deep_provider_kwargs)
+    "google_thinking_level": None,      # "high", "minimal", etc.
+    "openai_reasoning_effort": None,    # "medium", "high", "low"
+    "anthropic_effort": None,           # "high", "medium", "low"
+    # Sampling temperature, forwarded to every provider when set. None leaves
+    # each provider at its own default. Lower values reduce run-to-run
+    # variation on models that honor it; reasoning models largely ignore it
+    # and no setting makes LLM output bit-identical across runs (see README).
+    "temperature": None,
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
@@ -105,13 +124,15 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # while non-US tickers get their regional index automatically.
     "benchmark_ticker": None,
     "benchmark_map": {
-        ".NS":  "^NSEI",    # NSE India (Nifty 50)
-        ".BO":  "^BSESN",   # BSE India (Sensex)
-        ".T":   "^N225",    # Tokyo (Nikkei 225)
-        ".HK":  "^HSI",     # Hong Kong (Hang Seng)
-        ".L":   "^FTSE",    # London (FTSE 100)
-        ".TO":  "^GSPTSE",  # Toronto (TSX Composite)
-        ".AX":  "^AXJO",    # Australia (ASX 200)
-        "":     "SPY",      # default for US-listed tickers (no suffix)
+        ".NS":  "^NSEI",       # NSE India (Nifty 50)
+        ".BO":  "^BSESN",      # BSE India (Sensex)
+        ".T":   "^N225",       # Tokyo (Nikkei 225)
+        ".HK":  "^HSI",        # Hong Kong (Hang Seng)
+        ".L":   "^FTSE",       # London (FTSE 100)
+        ".TO":  "^GSPTSE",     # Toronto (TSX Composite)
+        ".AX":  "^AXJO",       # Australia (ASX 200)
+        ".SS":  "000001.SS",   # Shanghai (SSE Composite)
+        ".SZ":  "399001.SZ",   # Shenzhen (SZSE Component)
+        "":     "SPY",         # default for US-listed tickers (no suffix)
     },
 })
