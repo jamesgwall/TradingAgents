@@ -11,7 +11,9 @@ The should_continue_transcript method in ConditionalLogic always routes to
 
 from __future__ import annotations
 
+import contextlib
 import logging
+
 from langchain_core.messages import AIMessage
 
 log = logging.getLogger(__name__)
@@ -100,10 +102,8 @@ def create_transcript_analyst(llm):
             report = TRANSCRIPT_STUB_MARKER
         finally:
             if store is not None:
-                try:
+                with contextlib.suppress(Exception):
                     store.close()
-                except Exception:
-                    pass
 
         return {"messages": [AIMessage(content=report)], "transcript_report": report}
 

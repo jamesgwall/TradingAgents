@@ -19,6 +19,7 @@ from tradingagents.agents import (
     create_research_manager,
     create_sentiment_analyst,
     create_trader,
+    create_transcript_analyst,
 )
 from tradingagents.agents.utils.agent_states import AgentState
 
