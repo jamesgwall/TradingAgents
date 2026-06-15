@@ -46,11 +46,11 @@ def _embed_text(text: str, ollama_url: str) -> list[float]:
 def _open_conn():
     try:
         import psycopg2
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "psycopg2-binary is required for the transcript store. "
             "Run: pip install psycopg2-binary"
-        )
+        ) from err
     return psycopg2.connect(
         host=os.environ.get("PGVECTOR_HOST", "localhost"),
         port=int(os.environ.get("PGVECTOR_PORT", "5432")),
@@ -82,10 +82,10 @@ class TranscriptStore:
         try:
             from pgvector.psycopg2 import register_vector
             register_vector(self._conn)
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "pgvector Python package is required. Run: pip install pgvector"
-            )
+            ) from err
 
     def close(self) -> None:
         if self._conn and not self._conn.closed:
@@ -184,4 +184,4 @@ class TranscriptStore:
             "content_type", "chunk_index", "chunk_text", "ticker_tags",
             "similarity",
         )
-        return [dict(zip(keys, row)) for row in rows]
+        return [dict(zip(keys, row, strict=True)) for row in rows]
