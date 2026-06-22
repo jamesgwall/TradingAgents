@@ -15,9 +15,9 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # the two tiers need different providers.
 _ENV_OVERRIDES = {
     "TRADINGAGENTS_LLM_PROVIDER":         ("quick_llm_provider", "deep_llm_provider"),
+    "TRADINGAGENTS_LLM_BACKEND_URL":      ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
-    "TRADINGAGENTS_LLM_BACKEND_URL":      ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
