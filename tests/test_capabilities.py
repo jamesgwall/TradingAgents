@@ -117,6 +117,29 @@ class TestDefault:
 
 
 @pytest.mark.unit
+class TestWrapperTextOnly:
+    """The llm-session-wrapper model id is served by text-only CLIs (agy/claude),
+    so it must use no structured-output method — the deep/reasoning nodes go
+    straight to a single free-text call instead of a wasted structured attempt."""
+
+    def test_wrapper_model_has_no_structured_method(self):
+        caps = get_capabilities("gemini-3.1-pro-high")
+        assert caps.preferred_structured_method == "none"
+
+    def test_wrapper_model_rejects_tools_and_json(self):
+        caps = get_capabilities("gemini-3.1-pro-high")
+        assert caps.supports_tool_choice is False
+        assert caps.supports_json_mode is False
+        assert caps.supports_json_schema is False
+
+    def test_other_models_still_default_to_function_calling(self):
+        # The wrapper row is exact-match only; it must not change unknown-model defaults.
+        assert get_capabilities("gemini-3.1-pro").preferred_structured_method == (
+            "function_calling"
+        )
+
+
+@pytest.mark.unit
 def test_capabilities_dataclass_is_frozen():
     """Capability rows are immutable so they can be safely shared."""
     caps = get_capabilities("deepseek-chat")

@@ -89,6 +89,19 @@ _DEFAULT = ModelCapabilities(
     preferred_structured_method="function_calling",
 )
 
+# Subscription-CLI wrapper (llm-session-wrapper): an OpenAI-compatible shim that
+# shells out to text-only coding-agent CLIs (agy/claude). It cannot perform tool
+# calls or response_format structured output, so the deep/reasoning nodes must go
+# straight to a single free-text call. Without this, the unknown id falls through to
+# _DEFAULT (function_calling), so each node makes a wasted structured attempt plus a
+# free-text fallback — two slow CLI calls per node.
+_WRAPPER_TEXT_ONLY = ModelCapabilities(
+    supports_tool_choice=False,
+    supports_json_mode=False,
+    supports_json_schema=False,
+    preferred_structured_method="none",
+)
+
 
 # Exact-ID matches take precedence over pattern matches.
 _BY_ID: dict[str, ModelCapabilities] = {
@@ -105,6 +118,8 @@ _BY_ID: dict[str, ModelCapabilities] = {
     "MiniMax-M2.1": _MINIMAX_THINKING,
     "MiniMax-M2.1-highspeed": _MINIMAX_THINKING,
     "MiniMax-M2": _MINIMAX_THINKING,
+    # llm-session-wrapper deep/reasoning-node model id (served by agy/claude CLIs).
+    "gemini-3.1-pro-high": _WRAPPER_TEXT_ONLY,
 }
 
 # Forward-compat patterns. New ``deepseek-v5-*`` / ``deepseek-reasoner-*``
