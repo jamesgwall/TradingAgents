@@ -168,6 +168,35 @@ class TestQuery:
         assert rows[0]["lag_days"] == 40
 
 
+# ─── latest_disclosure_date() (slice 5 incremental window) ────────────────────
+
+
+class _OneValueCursor(_FakeCursor):
+    """Fake cursor whose fetchone() returns a single (value,) row."""
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def fetchone(self):
+        return (self._value,)
+
+
+@pytest.mark.unit
+class TestLatestDisclosureDate:
+    def test_returns_max_date_when_present(self):
+        store = _store_with(_FakeConn(_OneValueCursor(date(2026, 4, 10))))
+        assert store.latest_disclosure_date() == date(2026, 4, 10)
+
+    def test_parses_string_date(self):
+        store = _store_with(_FakeConn(_OneValueCursor("2026-04-10")))
+        assert store.latest_disclosure_date() == date(2026, 4, 10)
+
+    def test_empty_table_returns_none(self):
+        store = _store_with(_FakeConn(_OneValueCursor(None)))
+        assert store.latest_disclosure_date() is None
+
+
 # ─── upsert() ─────────────────────────────────────────────────────────────────
 
 

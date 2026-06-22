@@ -37,6 +37,10 @@ from datetime import date, datetime, timedelta
 import requests
 from parsel import Selector
 
+from tradingagents.dataflows.congress_committees import (
+    CommitteeResolver,
+    enrich_committees,
+)
 from tradingagents.dataflows.congress_trades_store import CongressTradesStore
 
 log = logging.getLogger(__name__)
@@ -294,6 +298,7 @@ def ingest_senate_ptrs(
     as_of: str | date | None = None,
     client: SenateEFDClient | None = None,
     store: CongressTradesStore | None = None,
+    committee_resolver: CommitteeResolver | None = None,
     dry_run: bool = False,
 ) -> dict:
     """Fetch, parse, and upsert Senate e-filed PTRs in a submitted-date window.
@@ -302,6 +307,11 @@ def ingest_senate_ptrs(
     abort the run. A failed handshake or report-data query raises
     ``SenateEFDError`` (the caller decides how to fail open). Returns a summary
     dict of counts.
+
+    ``committee_resolver`` is best-effort committee enrichment (slice 4): when
+    supplied, each parsed row's ``committee`` column is populated from the
+    member's standing-committee assignments. None (the default) leaves
+    ``committee`` null — so existing callers and tests are unaffected.
     """
     reference = _coerce_date(as_of) or date.today()
     start = reference - timedelta(days=days)
@@ -330,6 +340,9 @@ def ingest_senate_ptrs(
             continue
         parsed_rows.extend(rows)
         parsed_filings += 1
+
+    # Best-effort committee enrichment (no-op when no resolver is supplied).
+    enrich_committees(parsed_rows, committee_resolver)
 
     summary = {
         "filings_total": len(filings),
@@ -373,7 +386,12 @@ def _main(argv=None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     try:
-        summary = ingest_senate_ptrs(days=args.days, as_of=args.as_of, dry_run=args.dry_run)
+        summary = ingest_senate_ptrs(
+            days=args.days,
+            as_of=args.as_of,
+            committee_resolver=CommitteeResolver.load(),
+            dry_run=args.dry_run,
+        )
     except SenateEFDError as err:
         log.error("Senate EFD ingestion failed: %s", err)
         return 1

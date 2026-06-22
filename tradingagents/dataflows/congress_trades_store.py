@@ -241,6 +241,19 @@ class CongressTradesStore:
         conn.commit()
         return len(rows)
 
+    def latest_disclosure_date(self) -> date | None:
+        """Most recent ``disclosure_date`` in the table, or None when empty.
+
+        Used by the nightly pre-step (slice 5) to fetch only filings newer than
+        what is already stored. Returns None on an empty table so the caller
+        falls back to a default lookback window.
+        """
+        conn = self._ensure_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(disclosure_date) FROM congress_trades")
+            row = cur.fetchone()
+        return _parse_date(row[0]) if row and row[0] is not None else None
+
     def query(
         self,
         ticker: str,

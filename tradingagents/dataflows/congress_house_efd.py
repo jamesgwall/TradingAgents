@@ -50,6 +50,10 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+from tradingagents.dataflows.congress_committees import (
+    CommitteeResolver,
+    enrich_committees,
+)
 from tradingagents.dataflows.congress_trades_store import CongressTradesStore
 
 log = logging.getLogger(__name__)
@@ -416,6 +420,7 @@ def ingest_house_ptrs(
     client: HouseEFDClient | None = None,
     store: CongressTradesStore | None = None,
     structurer: Structurer | None = None,
+    committee_resolver: CommitteeResolver | None = None,
     dry_run: bool = False,
 ) -> dict:
     """Fetch, parse, and upsert House e-filed PTRs in a filing-date window.
@@ -424,6 +429,11 @@ def ingest_house_ptrs(
     fetch/parse/structure errors are logged and skipped so one bad report can't
     abort the run. A failed index download raises ``HouseEFDError`` (the caller
     decides how to fail open). Returns a summary dict of counts.
+
+    ``committee_resolver`` is best-effort committee enrichment (slice 4): when
+    supplied, each parsed row's ``committee`` column is populated from the
+    member's standing-committee assignments. None (the default) leaves
+    ``committee`` null — so existing callers and tests are unaffected.
     """
     reference = _coerce_date(as_of) or date.today()
     start = reference - timedelta(days=days)
@@ -459,6 +469,9 @@ def ingest_house_ptrs(
             continue
         parsed_rows.extend(rows)
         parsed_filings += 1
+
+    # Best-effort committee enrichment (no-op when no resolver is supplied).
+    enrich_committees(parsed_rows, committee_resolver)
 
     summary = {
         "year": year,
@@ -511,7 +524,8 @@ def _main(argv=None) -> int:
     try:
         summary = ingest_house_ptrs(
             year=args.year, days=args.days, as_of=args.as_of,
-            structurer=structurer, dry_run=args.dry_run,
+            structurer=structurer, committee_resolver=CommitteeResolver.load(),
+            dry_run=args.dry_run,
         )
     except HouseEFDError as err:
         log.error("House EFD ingestion failed: %s", err)

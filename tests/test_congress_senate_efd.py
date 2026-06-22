@@ -279,6 +279,24 @@ class TestIngest:
         assert summary["filings_failed"] == 1
         assert summary["rows_upserted"] == 0
 
+    def test_committee_enrichment_populates_rows(self):
+        """Slice 4: an injected resolver populates the committee column."""
+        class _FakeResolver:
+            def committee_for(self, member_name, chamber):
+                return "Banking" if member_name == "Jane Smith" else None
+
+        store = _FakeStore()
+        client = _FakeClient(self._filings(), _FIXTURE.read_text())
+        ingest_senate_ptrs(client=client, store=store, days=30, as_of="2026-04-30",
+                           committee_resolver=_FakeResolver())
+        assert {r["committee"] for r in store.upserted} == {"Banking"}
+
+    def test_no_resolver_leaves_committee_null(self):
+        store = _FakeStore()
+        client = _FakeClient(self._filings(), _FIXTURE.read_text())
+        ingest_senate_ptrs(client=client, store=store, days=30, as_of="2026-04-30")
+        assert all(r["committee"] is None for r in store.upserted)
+
 
 # ─── Live smoke (auto-skips offline) ──────────────────────────────────────────
 
