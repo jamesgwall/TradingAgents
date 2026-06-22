@@ -58,6 +58,13 @@ ANALYST_NODE_SPECS: dict[str, AnalystNodeSpec] = {
         tool_node="tools_transcript",
         report_key="transcript_report",
     ),
+    "congress": AnalystNodeSpec(
+        key="congress",
+        agent_node="Congressional Trades Analyst",
+        clear_node="Msg Clear Congress",
+        tool_node="tools_congress",
+        report_key="congressional_trades_report",
+    ),
 }
 
 

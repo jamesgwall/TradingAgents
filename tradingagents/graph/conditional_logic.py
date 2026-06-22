@@ -53,6 +53,10 @@ class ConditionalLogic:
         """Transcript analyst never makes tool calls — always route to clear."""
         return "Msg Clear Transcript"
 
+    def should_continue_congress(self, state: AgentState):
+        """Congressional trades analyst never makes tool calls — always route to clear."""
+        return "Msg Clear Congress"
+
     def should_continue_debate(self, state: AgentState) -> str:
         """Determine if debate should continue."""
 

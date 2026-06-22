@@ -200,6 +200,9 @@ class TradingAgentsGraph:
             # Transcript analyst never makes LangGraph tool calls; this node
             # exists to satisfy the graph pattern but is never routed to.
             "transcript": ToolNode([]),
+            # Congressional trades analyst likewise fetches directly and never
+            # emits tool calls; empty node satisfies the graph pattern.
+            "congress": ToolNode([]),
         }
 
     def _resolve_benchmark(self, ticker: str) -> str:

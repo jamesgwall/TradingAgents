@@ -60,6 +60,9 @@ class AgentState(MessagesState):
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
     transcript_report: Annotated[str, "Report from the Transcript Analyst"]
+    congressional_trades_report: Annotated[
+        str, "Report from the Congressional Trades Analyst (STOCK Act disclosures)"
+    ]
 
     # researcher team discussion step
     investment_debate_state: Annotated[

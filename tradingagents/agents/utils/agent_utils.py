@@ -187,6 +187,23 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
     )
 
 
+def get_congress_section(state: Mapping[str, Any]) -> str:
+    """Return a prompt fragment for the congressional-trades report, or "".
+
+    The congress analyst is opt-in and fails open with a ``NO_CONGRESS_DATA``
+    stub when its API key is missing or the call fails. In both cases we emit
+    nothing rather than feed the debate agents an empty or stub line — they
+    simply reason without the signal, exactly as if the analyst weren't run.
+    """
+    report = state.get("congressional_trades_report", "")
+    if not isinstance(report, str):
+        return ""
+    report = report.strip()
+    if not report or report == "NO_CONGRESS_DATA":
+        return ""
+    return f"\nDisclosed congressional (STOCK Act) trades: {report}"
+
+
 def create_msg_delete():
     def delete_messages(state):
         """Clear messages and add a context-anchored placeholder.
