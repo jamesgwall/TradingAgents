@@ -9,6 +9,7 @@ from tradingagents.agents import (
     create_aggressive_debator,
     create_bear_researcher,
     create_bull_researcher,
+    create_congressional_trades_analyst,
     create_conservative_debator,
     create_fundamentals_analyst,
     create_market_analyst,
@@ -19,6 +20,7 @@ from tradingagents.agents import (
     create_research_manager,
     create_sentiment_analyst,
     create_trader,
+    create_transcript_analyst,
 )
 from tradingagents.agents.utils.agent_states import AgentState
 
@@ -35,12 +37,14 @@ class GraphSetup:
         deep_thinking_llm: Any,
         tool_nodes: dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
+        analyst_concurrency_limit: int = 1,
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
+        self.analyst_concurrency_limit = analyst_concurrency_limit
 
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals")
@@ -54,13 +58,15 @@ class GraphSetup:
                 - "news": News analyst
                 - "fundamentals": Fundamentals analyst
         """
-        plan = build_analyst_execution_plan(selected_analysts)
+        plan = build_analyst_execution_plan(selected_analysts, concurrency_limit=self.analyst_concurrency_limit)
 
         analyst_factories = {
             "market": lambda: create_market_analyst(self.quick_thinking_llm),
             "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
             "news": lambda: create_news_analyst(self.quick_thinking_llm),
             "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
+            "transcript": lambda: create_transcript_analyst(self.quick_thinking_llm),
+            "congress": lambda: create_congressional_trades_analyst(self.quick_thinking_llm),
         }
 
         # Create researcher and manager nodes

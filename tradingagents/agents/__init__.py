@@ -5,6 +5,8 @@ from .analysts.sentiment_analyst import (
     create_sentiment_analyst,
     create_social_media_analyst,  # deprecated alias kept for back-compat
 )
+from tradingagents.agents.analysts.transcript_analyst import create_transcript_analyst
+from tradingagents.agents.analysts.congressional_trades_analyst import create_congressional_trades_analyst
 from .managers.portfolio_manager import create_portfolio_manager
 from .managers.research_manager import create_research_manager
 from .researchers.bear_researcher import create_bear_researcher

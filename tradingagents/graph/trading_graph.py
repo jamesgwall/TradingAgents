@@ -32,7 +32,6 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
-from tradingagents.reporting import write_report_tree
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -73,24 +72,26 @@ class TradingAgentsGraph:
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
 
-        # Initialize LLMs with provider-specific thinking configuration
-        llm_kwargs = self._get_provider_kwargs()
+        # Initialize LLMs — quick and deep may use different providers
+        quick_kwargs = self._get_provider_kwargs("quick")
+        deep_kwargs = self._get_provider_kwargs("deep")
 
         # Add callbacks to kwargs if provided (passed to LLM constructor)
         if self.callbacks:
-            llm_kwargs["callbacks"] = self.callbacks
+            quick_kwargs["callbacks"] = self.callbacks
+            deep_kwargs["callbacks"] = self.callbacks
 
         deep_client = create_llm_client(
-            provider=self.config["llm_provider"],
+            provider=self.config.get("deep_llm_provider", self.config.get("llm_provider", "openai")),
             model=self.config["deep_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
+            base_url=self.config.get("deep_backend_url"),
+            **deep_kwargs,
         )
         quick_client = create_llm_client(
-            provider=self.config["llm_provider"],
+            provider=self.config.get("quick_llm_provider", self.config.get("llm_provider", "openai")),
             model=self.config["quick_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
+            base_url=self.config.get("quick_backend_url"),
+            **quick_kwargs,
         )
 
         self.deep_thinking_llm = deep_client.get_llm()
@@ -111,6 +112,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm,
             self.tool_nodes,
             self.conditional_logic,
+            analyst_concurrency_limit=self.config.get("analyst_concurrency_limit", 1),
         )
 
         self.propagator = Propagator(
@@ -129,31 +131,28 @@ class TradingAgentsGraph:
         self.graph = self.workflow.compile()
         self._checkpointer_ctx = None
 
-    def _get_provider_kwargs(self) -> dict[str, Any]:
-        """Get provider-specific kwargs for LLM client creation."""
-        kwargs = {}
-        provider = self.config.get("llm_provider", "").lower()
+    def _get_provider_kwargs(self, tier: str) -> dict[str, Any]:
+        """Get provider-specific kwargs for a thinking tier ('quick' or 'deep')."""
+        kwargs = dict(self.config.get(f"{tier}_provider_kwargs") or {})
 
-        if provider == "google":
+        provider = self.config.get(f"{tier}_llm_provider", self.config.get("llm_provider", "")).lower()
+
+        if "thinking_level" not in kwargs and provider == "google":
             thinking_level = self.config.get("google_thinking_level")
             if thinking_level:
                 kwargs["thinking_level"] = thinking_level
-
-        elif provider == "openai":
+        elif "reasoning_effort" not in kwargs and provider == "openai":
             reasoning_effort = self.config.get("openai_reasoning_effort")
             if reasoning_effort:
                 kwargs["reasoning_effort"] = reasoning_effort
-
-        elif provider == "anthropic":
+        elif "effort" not in kwargs and provider == "anthropic":
             effort = self.config.get("anthropic_effort")
             if effort:
                 kwargs["effort"] = effort
 
         # Sampling temperature is cross-provider: forward it whenever set.
-        # float() here so a value coming from a TRADINGAGENTS_TEMPERATURE env
-        # string ("0.2") works the same as a programmatic float.
         temperature = self.config.get("temperature")
-        if temperature is not None and temperature != "":
+        if temperature is not None and temperature != "" and "temperature" not in kwargs:
             kwargs["temperature"] = float(temperature)
 
         return kwargs
@@ -198,6 +197,12 @@ class TradingAgentsGraph:
                     get_income_statement,
                 ]
             ),
+            # Transcript analyst never makes LangGraph tool calls; this node
+            # exists to satisfy the graph pattern but is never routed to.
+            "transcript": ToolNode([]),
+            # Congressional trades analyst likewise fetches directly and never
+            # emits tool calls; empty node satisfies the graph pattern.
+            "congress": ToolNode([]),
         }
 
     def _resolve_benchmark(self, ticker: str) -> str:
@@ -359,20 +364,6 @@ class TradingAgentsGraph:
                 self._checkpointer_ctx = None
                 self.graph = self.workflow.compile()
 
-    def save_reports(self, final_state, ticker, save_path=None) -> Path:
-        """Write the markdown report tree for a completed run, like the CLI does.
-
-        Programmatic callers get the same on-disk reports the CLI produces. Pass
-        an explicit ``save_path`` or let it default under ``results_dir``.
-        """
-        if save_path is None:
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            save_path = (
-                Path(self.config["results_dir"])
-                / "reports"
-                / f"{safe_ticker_component(ticker)}_{stamp}"
-            )
-        return write_report_tree(final_state, ticker, save_path)
 
     def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
         """Execute the graph and write the resulting state to disk and memory log."""
@@ -396,17 +387,11 @@ class TradingAgentsGraph:
 
         if self.debug:
             trace = []
-            last_printed = None
             for chunk in self.graph.stream(init_agent_state, **args):
-                if chunk["messages"]:
-                    msg = chunk["messages"][-1]
-                    # Nodes after the trader don't append to messages, so the
-                    # same trailing message repeats across chunks. Print it only
-                    # when it changes (#1027); the trace/state merge is unchanged.
-                    signature = (type(msg).__name__, getattr(msg, "content", None))
-                    if signature != last_printed:
-                        msg.pretty_print()
-                        last_printed = signature
+                if len(chunk["messages"]) == 0:
+                    pass
+                else:
+                    chunk["messages"][-1].pretty_print()
                     trace.append(chunk)
             # Streamed chunks are per-node deltas. Merge them so the returned
             # state matches what graph.invoke() yields in the non-debug path.

@@ -7,46 +7,31 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # entry-point script changes required. Coercion is driven by the type
 # of the existing default, so users can keep writing plain strings in
 # their .env file.
+#
+# A value may be a single config key or a tuple of keys. The provider/URL
+# config is per-tier (quick + deep), so the convenience env vars fan out to
+# both tiers — TRADINGAGENTS_LLM_PROVIDER=google sets quick and deep at once.
+# Use the per-tier config keys directly (or a future per-tier env var) when
+# the two tiers need different providers.
 _ENV_OVERRIDES = {
-    "TRADINGAGENTS_LLM_PROVIDER":         "llm_provider",
+    "TRADINGAGENTS_LLM_PROVIDER":         ("quick_llm_provider", "deep_llm_provider"),
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
-    "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
+    "TRADINGAGENTS_LLM_BACKEND_URL":      ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
-    # Provider-specific reasoning/thinking knobs (None = each provider's own
-    # default). Settable here for non-interactive runs; the CLI also offers an
-    # interactive choice, which is skipped when the matching var is set.
-    "TRADINGAGENTS_GOOGLE_THINKING_LEVEL":   "google_thinking_level",
-    "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
-    "TRADINGAGENTS_ANTHROPIC_EFFORT":        "anthropic_effort",
 }
 
 
-_BOOL_TRUE = ("true", "1", "yes", "on")
-_BOOL_FALSE = ("false", "0", "no", "off")
-
 
 def _coerce(value: str, reference):
-    """Coerce env-var string to the type of the existing default value.
-
-    Invalid values raise ``ValueError`` rather than silently falling back to a
-    default — a misspelled boolean (e.g. ``treu``) or non-numeric int should fail
-    loudly at startup, not quietly misconfigure an unattended run.
-    """
+    """Coerce env-var string to the type of the existing default value."""
     if isinstance(reference, bool):
-        normalized = value.strip().lower()
-        if normalized in _BOOL_TRUE:
-            return True
-        if normalized in _BOOL_FALSE:
-            return False
-        raise ValueError(
-            f"expected a boolean ({'/'.join(_BOOL_TRUE + _BOOL_FALSE)}), got {value!r}"
-        )
+        return value.strip().lower() in ("true", "1", "yes", "on")
     if isinstance(reference, int) and not isinstance(reference, bool):
         return int(value)
     if isinstance(reference, float):
@@ -56,14 +41,14 @@ def _coerce(value: str, reference):
 
 def _apply_env_overrides(config: dict) -> dict:
     """Apply TRADINGAGENTS_* env vars to the config dict in-place."""
-    for env_var, key in _ENV_OVERRIDES.items():
+    for env_var, keys in _ENV_OVERRIDES.items():
         raw = os.environ.get(env_var)
         if raw is None or raw == "":
             continue
-        try:
+        if isinstance(keys, str):
+            keys = (keys,)
+        for key in keys:
             config[key] = _coerce(raw, config.get(key))
-        except ValueError as exc:
-            raise ValueError(f"Invalid value for {env_var}: {exc}") from exc
     return config
 
 
@@ -76,17 +61,16 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # the oldest resolved entries are pruned once this limit is exceeded.
     # Pending entries are never pruned. None disables rotation entirely.
     "memory_log_max_entries": None,
-    # LLM settings
-    "llm_provider": "openai",
-    "deep_think_llm": "gpt-5.5",
+    # LLM settings — per-tier provider/model/URL so quick and deep can use different providers
+    "quick_llm_provider": "openai",
     "quick_think_llm": "gpt-5.4-mini",
-    # When None, each provider's client falls back to its own default endpoint
-    # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
-    # The CLI overrides this per provider when the user picks one. Keeping a
-    # provider-specific URL here would leak (e.g. OpenAI's /v1 was previously
-    # being forwarded to Gemini, producing malformed request URLs).
-    "backend_url": None,
-    # Provider-specific thinking configuration
+    "quick_backend_url": None,
+    "quick_provider_kwargs": {},        # e.g. {"reasoning_effort": "low"} for openai
+    "deep_llm_provider": "openai",
+    "deep_think_llm": "gpt-5.5",
+    "deep_backend_url": None,
+    "deep_provider_kwargs": {},         # e.g. {"thinking_level": "high"} for google
+    # Provider-specific thinking configuration (also storable in quick/deep_provider_kwargs)
     "google_thinking_level": None,      # "high", "minimal", etc.
     "openai_reasoning_effort": None,    # "medium", "high", "low"
     "anthropic_effort": None,           # "high", "medium", "low"
@@ -105,6 +89,7 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
     "max_recur_limit": 100,
+    "analyst_concurrency_limit": 1,
     # News / data fetching parameters
     # Increase for longer lookback strategies or to broaden macro coverage;
     # decrease to reduce token usage in agent prompts.

@@ -15,6 +15,7 @@ class AnalystNodeSpec:
 @dataclass(frozen=True)
 class AnalystExecutionPlan:
     specs: list[AnalystNodeSpec]
+    concurrency_limit: int
 
 
 ANALYST_NODE_SPECS: dict[str, AnalystNodeSpec] = {
@@ -50,12 +51,30 @@ ANALYST_NODE_SPECS: dict[str, AnalystNodeSpec] = {
         tool_node="tools_fundamentals",
         report_key="fundamentals_report",
     ),
+    "transcript": AnalystNodeSpec(
+        key="transcript",
+        agent_node="Transcript Analyst",
+        clear_node="Msg Clear Transcript",
+        tool_node="tools_transcript",
+        report_key="transcript_report",
+    ),
+    "congress": AnalystNodeSpec(
+        key="congress",
+        agent_node="Congressional Trades Analyst",
+        clear_node="Msg Clear Congress",
+        tool_node="tools_congress",
+        report_key="congressional_trades_report",
+    ),
 }
 
 
 def build_analyst_execution_plan(
     selected_analysts: Iterable[str],
+    concurrency_limit: int = 1,
 ) -> AnalystExecutionPlan:
+    if concurrency_limit < 1:
+        raise ValueError("analyst concurrency limit must be >= 1")
+
     specs: list[AnalystNodeSpec] = []
     for analyst_key in selected_analysts:
         spec = ANALYST_NODE_SPECS.get(analyst_key)
@@ -66,7 +85,7 @@ def build_analyst_execution_plan(
     if not specs:
         raise ValueError("at least one analyst must be selected")
 
-    return AnalystExecutionPlan(specs=specs)
+    return AnalystExecutionPlan(specs=specs, concurrency_limit=concurrency_limit)
 
 
 def get_initial_analyst_node(plan: AnalystExecutionPlan) -> str:

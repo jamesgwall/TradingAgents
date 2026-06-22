@@ -84,6 +84,7 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("GPT-5.4 Mini - Fast, strong coding and tool use", "gpt-5.4-mini"),
             ("GPT-5.4 Nano - Cheapest, high-volume tasks", "gpt-5.4-nano"),
             ("GPT-5.5 - Latest frontier, 1M context", "gpt-5.5"),
+            ("GPT-4.1 - Smartest non-reasoning model", "gpt-4.1"),
         ],
         "deep": [
             ("GPT-5.5 - Latest frontier, 1M context", "gpt-5.5"),
@@ -96,6 +97,7 @@ MODEL_OPTIONS: ProviderModeOptions = {
         "quick": [
             ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
             ("Claude Haiku 4.5 - Fastest with near-frontier intelligence", "claude-haiku-4-5"),
+            ("Claude Sonnet 4.5 - High-performance for agents and coding", "claude-sonnet-4-5"),
         ],
         "deep": [
             ("Claude Opus 4.8 - Latest frontier, agentic coding and reasoning", "claude-opus-4-8"),
@@ -107,11 +109,15 @@ MODEL_OPTIONS: ProviderModeOptions = {
     "google": {
         "quick": [
             ("Gemini 3.5 Flash - Latest, frontier agentic + coding (GA)", "gemini-3.5-flash"),
-            ("Gemini 3.1 Flash Lite - Most cost-efficient", "gemini-3.1-flash-lite"),
+            ("Gemini 3.1 Flash Lite - Most cost-efficient (GA)", "gemini-3.1-flash-lite"),
+            ("Gemini 2.5 Flash - Balanced, stable", "gemini-2.5-flash"),
+            ("Gemini 2.5 Flash Lite - Fast, low-cost", "gemini-2.5-flash-lite"),
         ],
         "deep": [
             ("Gemini 3.1 Pro - Reasoning-first, complex workflows (preview)", "gemini-3.1-pro-preview"),
             ("Gemini 3.5 Flash - Latest GA, strong agentic + coding", "gemini-3.5-flash"),
+            ("Gemini 2.5 Pro - Stable pro model", "gemini-2.5-pro"),
+            ("Gemini 2.5 Flash - Balanced, stable", "gemini-2.5-flash"),
         ],
     },
     "xai": {
@@ -163,15 +169,21 @@ MODEL_OPTIONS: ProviderModeOptions = {
     # `ollama pull` beyond the three suggested defaults.
     "ollama": {
         "quick": [
-            ("Qwen3:latest (8B)", "qwen3:latest"),
-            ("GPT-OSS:latest (20B)", "gpt-oss:latest"),
-            ("GLM-4.7-Flash:latest (30B)", "glm-4.7-flash:latest"),
+            ("gemma4:e2b (local)", "gemma4:e2b"),
+            ("gemma4:26b (local)", "gemma4:26b"),
+            ("gemma4:latest (local)", "gemma4:latest"),
+            ("Qwen3:latest (8B, local)", "qwen3:latest"),
+            ("GPT-OSS:latest (20B, local)", "gpt-oss:latest"),
+            ("GLM-4.7-Flash:latest (30B, local)", "glm-4.7-flash:latest"),
             ("Custom model ID", "custom"),
         ],
         "deep": [
-            ("GLM-4.7-Flash:latest (30B)", "glm-4.7-flash:latest"),
-            ("GPT-OSS:latest (20B)", "gpt-oss:latest"),
-            ("Qwen3:latest (8B)", "qwen3:latest"),
+            ("gemma4:e2b (local)", "gemma4:e2b"),
+            ("gemma4:26b (local)", "gemma4:26b"),
+            ("gemma4:latest (local)", "gemma4:latest"),
+            ("GLM-4.7-Flash:latest (30B, local)", "glm-4.7-flash:latest"),
+            ("GPT-OSS:latest (20B, local)", "gpt-oss:latest"),
+            ("Qwen3:latest (8B, local)", "qwen3:latest"),
             ("Custom model ID", "custom"),
         ],
     },
