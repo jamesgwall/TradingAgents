@@ -1,0 +1,66 @@
+<!--
+Trimmed capture of a Senate EFD e-filed PTR view page
+(https://efdsearch.senate.gov/search/view/ptr/<uuid>/). Chrome and boilerplate
+stripped; the transactions table is preserved verbatim so the parser test
+asserts against real markup. Includes one non-equity row (ticker "--") that the
+parser must drop.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Periodic Transaction Report</title></head>
+<body>
+  <div class="container">
+    <h1>Periodic Transaction Report</h1>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Transaction Date</th>
+          <th>Owner</th>
+          <th>Ticker</th>
+          <th>Asset Name</th>
+          <th>Asset Type</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Comment</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>03/01/2026</td>
+          <td>Spouse</td>
+          <td><a href="https://finance.yahoo.com/q?s=AAPL" target="_blank">AAPL</a></td>
+          <td>Apple Inc. - Common Stock</td>
+          <td>Stock</td>
+          <td>Purchase</td>
+          <td>$15,001 - $50,000</td>
+          <td>--</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>03/04/2026</td>
+          <td>Self</td>
+          <td><a href="https://finance.yahoo.com/q?s=MSFT" target="_blank">MSFT</a></td>
+          <td>Microsoft Corporation - Common Stock</td>
+          <td>Stock</td>
+          <td>Sale (Full)</td>
+          <td>$1,001 - $15,000</td>
+          <td>Sold to rebalance.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>03/06/2026</td>
+          <td>Joint</td>
+          <td>--</td>
+          <td>US Treasury Note 2.5% 2030</td>
+          <td>Corporate Bond</td>
+          <td>Purchase</td>
+          <td>$50,001 - $100,000</td>
+          <td>--</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
