@@ -18,6 +18,12 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_LLM_BACKEND_URL": ("quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_DEEP_THINK_LLM": "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM": "quick_think_llm",
+    # Optional third "reasoning" tier for the debate nodes (see DEFAULT_CONFIG).
+    # Unlike the convenience vars above these are per-tier on purpose: the
+    # reasoning tier is opt-in and falls back to quick when left unset.
+    "TRADINGAGENTS_REASONING_LLM_PROVIDER": "reasoning_llm_provider",
+    "TRADINGAGENTS_REASONING_LLM_BACKEND_URL": "reasoning_backend_url",
+    "TRADINGAGENTS_REASONING_THINK_LLM": "reasoning_think_llm",
     "TRADINGAGENTS_OUTPUT_LANGUAGE": "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS": "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS": "max_risk_discuss_rounds",
@@ -77,6 +83,17 @@ DEFAULT_CONFIG = _apply_env_overrides(
         "deep_think_llm": "gpt-5.5",
         "deep_backend_url": None,
         "deep_provider_kwargs": {},  # e.g. {"thinking_level": "high"} for google
+        # Optional third "reasoning" tier for the debate nodes (bull/bear
+        # researchers + the three risk debators). These nodes use no tools, so
+        # they are safe on a text-only subscription backend. When every key
+        # below is unset they fall back to the quick tier, leaving graph
+        # behavior unchanged; point them at the local llm-session-wrapper
+        # (openai_compatible, http://localhost:11500/v1, gemini-3.1-pro-high)
+        # to offload debate compute off the laptop (milestone B2).
+        "reasoning_llm_provider": None,
+        "reasoning_think_llm": None,
+        "reasoning_backend_url": None,
+        "reasoning_provider_kwargs": {},
         # Provider-specific thinking configuration (also storable in quick/deep_provider_kwargs)
         "google_thinking_level": None,  # "high", "minimal", etc.
         "openai_reasoning_effort": None,  # "medium", "high", "low"
