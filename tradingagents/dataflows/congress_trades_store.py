@@ -91,6 +91,7 @@ class CongressTradesError(RuntimeError):
 
 # ─── Normalization helpers (shared by the analyst) ────────────────────────────
 
+
 def _parse_date(value) -> date | None:
     """Best-effort parse of a date string/object into a ``date``.
 
@@ -149,20 +150,21 @@ def _row_to_normalized(row: dict) -> dict:
     disclosure = _parse_date(row.get("disclosure_date"))
     lag = (disclosure - trade).days if (disclosure and trade) else None
     return {
-        "representative":   str(row.get("member_name") or "").strip(),
-        "party":            str(row.get("party") or "").strip(),
-        "chamber":          _normalize_chamber(row.get("chamber")),
-        "committee":        str(row.get("committee") or "").strip(),
-        "trader":           _normalize_trader(row.get("owner_type")),
+        "representative": str(row.get("member_name") or "").strip(),
+        "party": str(row.get("party") or "").strip(),
+        "chamber": _normalize_chamber(row.get("chamber")),
+        "committee": str(row.get("committee") or "").strip(),
+        "trader": _normalize_trader(row.get("owner_type")),
         "transaction_type": _normalize_transaction(row.get("transaction_type")),
-        "amount_range":     str(row.get("amount_range") or "").strip(),
-        "trade_date":       trade,
-        "disclosure_date":  disclosure,
-        "lag_days":         lag,
+        "amount_range": str(row.get("amount_range") or "").strip(),
+        "trade_date": trade,
+        "disclosure_date": disclosure,
+        "lag_days": lag,
     }
 
 
 # ─── Connection ───────────────────────────────────────────────────────────────
+
 
 def _open_conn():
     try:
@@ -325,6 +327,8 @@ def fetch_congressional_trades(
         store.close()
     log.info(
         "congress_trades store: %d trade(s) for %s within %dd window",
-        len(rows), ticker, days,
+        len(rows),
+        ticker,
+        days,
     )
     return rows

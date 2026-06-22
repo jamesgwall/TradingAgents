@@ -196,6 +196,7 @@ def create_social_media_analyst(llm):
         Import :func:`create_sentiment_analyst` directly instead.
     """
     import warnings
+
     warnings.warn(
         "create_social_media_analyst is deprecated and will be removed in a "
         "future version. Use create_sentiment_analyst instead.",

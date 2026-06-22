@@ -3,6 +3,7 @@
 Regressions for #990 (no request timeout -> can hang) and #991 (invalid-key
 responses mislabeled as rate limits and silently treated as transient).
 """
+
 import pytest
 
 import tradingagents.dataflows.alpha_vantage_common as av
@@ -21,6 +22,7 @@ def _patched_get(body, capture=None):
         if capture is not None:
             capture.update(kwargs)
         return _FakeResponse(body)
+
     return fake_get
 
 
@@ -44,11 +46,17 @@ def test_rate_limit_detected(monkeypatch):
 def test_invalid_key_not_mislabeled_as_rate_limit(monkeypatch):
     # AV's invalid-key notice mentions "API key"; it must NOT be treated as a
     # (transient) rate limit, but surface as a real configuration error (#991).
-    body = ('{"Information": "the parameter apikey is invalid or missing. '
-            'Please claim your free API key on (https://www.alphavantage.co/support/#api-key)."}')
+    body = (
+        '{"Information": "the parameter apikey is invalid or missing. '
+        'Please claim your free API key on (https://www.alphavantage.co/support/#api-key)."}'
+    )
     monkeypatch.setattr(av.requests, "get", _patched_get(body))
     with pytest.raises(av.AlphaVantageNotConfiguredError):
         av._make_api_request("TIME_SERIES_DAILY", {"symbol": "AAPL"})
     with pytest.raises(av.AlphaVantageRateLimitError):  # sanity: rate-limit path still distinct
-        monkeypatch.setattr(av.requests, "get", _patched_get('{"Note": "API call frequency is 5 calls per minute."}'))
+        monkeypatch.setattr(
+            av.requests,
+            "get",
+            _patched_get('{"Note": "API call frequency is 5 calls per minute."}'),
+        )
         av._make_api_request("TIME_SERIES_DAILY", {"symbol": "AAPL"})

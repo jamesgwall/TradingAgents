@@ -22,9 +22,9 @@ import json
 import os
 import urllib.request
 
-EMBED_MODEL       = "nomic-embed-text"
+EMBED_MODEL = "nomic-embed-text"
 MACRO_WINDOW_DAYS = 30
-DEFAULT_TOP_K     = 8
+DEFAULT_TOP_K = 8
 
 
 def _embed_text(text: str, ollama_url: str) -> list[float]:
@@ -48,8 +48,7 @@ def _open_conn():
         import psycopg2
     except ImportError as err:
         raise ImportError(
-            "psycopg2-binary is required for the transcript store. "
-            "Run: pip install psycopg2-binary"
+            "psycopg2-binary is required for the transcript store. Run: pip install psycopg2-binary"
         ) from err
     return psycopg2.connect(
         host=os.environ.get("PGVECTOR_HOST", "localhost"),
@@ -69,9 +68,8 @@ class TranscriptStore:
     """
 
     def __init__(self, ollama_url: str | None = None):
-        self._ollama_url: str = (
-            ollama_url
-            or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        self._ollama_url: str = ollama_url or os.environ.get(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
         )
         self._conn = None
 
@@ -81,6 +79,7 @@ class TranscriptStore:
         self._conn = _open_conn()
         try:
             from pgvector.psycopg2 import register_vector
+
             register_vector(self._conn)
         except ImportError as err:
             raise ImportError(
@@ -180,8 +179,14 @@ class TranscriptStore:
     @staticmethod
     def _to_dicts(rows) -> list[dict]:
         keys = (
-            "video_id", "channel_name", "video_title", "published_at",
-            "content_type", "chunk_index", "chunk_text", "ticker_tags",
+            "video_id",
+            "channel_name",
+            "video_title",
+            "published_at",
+            "content_type",
+            "chunk_index",
+            "chunk_text",
+            "ticker_tags",
             "similarity",
         )
         return [dict(zip(keys, row, strict=True)) for row in rows]

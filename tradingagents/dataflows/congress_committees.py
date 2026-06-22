@@ -80,22 +80,45 @@ _COMMITTEE_DESCRIPTORS = (
 
 # Honorifics / titles dropped from a member name before matching.
 _TITLES = frozenset(
-    {"sen", "senator", "rep", "representative", "congressman", "congresswoman",
-     "hon", "honorable", "the", "dr", "mr", "mrs", "ms", "del", "delegate"}
+    {
+        "sen",
+        "senator",
+        "rep",
+        "representative",
+        "congressman",
+        "congresswoman",
+        "hon",
+        "honorable",
+        "the",
+        "dr",
+        "mr",
+        "mrs",
+        "ms",
+        "del",
+        "delegate",
+    }
 )
 # Generational suffixes dropped before matching.
 _SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv", "v"})
 
 # Incoming chamber strings -> dataset term ``type``.
 _CHAMBER_TO_TYPE = {
-    "senate": "sen", "sen": "sen", "s": "sen", "upper": "sen",
-    "house": "rep", "rep": "rep", "representatives": "rep",
-    "house of representatives": "rep", "h": "rep", "lower": "rep",
+    "senate": "sen",
+    "sen": "sen",
+    "s": "sen",
+    "upper": "sen",
+    "house": "rep",
+    "rep": "rep",
+    "representatives": "rep",
+    "house of representatives": "rep",
+    "h": "rep",
+    "lower": "rep",
 }
 _TYPE_TO_CHAMBER = {"sen": "Senate", "rep": "House"}
 
 
 # ─── Result type ──────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class MemberMatch:
@@ -104,11 +127,12 @@ class MemberMatch:
     ``matched`` is False for an unknown / ambiguous member; in that case
     ``committees`` is empty and the other fields are None.
     """
+
     matched: bool
     bioguide: str | None = None
     committees: tuple[str, ...] = ()
-    party: str | None = None        # dataset value: "Democrat" / "Republican" / "Independent"
-    chamber: str | None = None      # normalized "Senate" / "House"
+    party: str | None = None  # dataset value: "Democrat" / "Republican" / "Independent"
+    chamber: str | None = None  # normalized "Senate" / "House"
 
     @property
     def committee_string(self) -> str | None:
@@ -120,6 +144,7 @@ NO_MATCH = MemberMatch(matched=False)
 
 
 # ─── Name normalization ─────────────────────────────────────────────────────
+
 
 def _norm_token(tok: str) -> str:
     return re.sub(r"[^a-z]", "", tok.lower())
@@ -134,7 +159,7 @@ def _normalize_name(raw: str | None) -> tuple[str, str, str]:
     if not raw:
         return "", "", ""
     s = str(raw).strip()
-    if "," in s:                                  # "Tuberville, Tommy" -> "Tommy Tuberville"
+    if "," in s:  # "Tuberville, Tommy" -> "Tommy Tuberville"
         last_part, _, rest = s.partition(",")
         s = f"{rest.strip()} {last_part.strip()}"
 
@@ -146,6 +171,7 @@ def _normalize_name(raw: str | None) -> tuple[str, str, str]:
 
 
 # ─── Resolver ───────────────────────────────────────────────────────────────
+
 
 class CommitteeResolver:
     """Resolve member + chamber -> committees from congress-legislators data.
@@ -185,7 +211,7 @@ class CommitteeResolver:
         acc: dict[str, set[str]] = {}
         for committee_id, members in (memberships or {}).items():
             name = id_to_name.get(committee_id)
-            if not name:                          # skip subcommittees / unknown ids
+            if not name:  # skip subcommittees / unknown ids
                 continue
             for m in members or []:
                 bioguide = (m or {}).get("bioguide")
@@ -203,7 +229,7 @@ class CommitteeResolver:
                 current = terms[-1] if terms else {}
                 self._bioguide_meta[bioguide] = {
                     "party": current.get("party"),
-                    "type": (current.get("type") or "").lower(),   # "sen" / "rep"
+                    "type": (current.get("type") or "").lower(),  # "sen" / "rep"
                 }
 
                 name = leg.get("name") or {}
@@ -228,21 +254,21 @@ class CommitteeResolver:
                         self._by_first_last.setdefault((kfirst, klast), set()).add(bioguide)
                     if klast:
                         self._by_last.setdefault(klast, set()).add(bioguide)
-            except Exception:                      # one bad record must not break the index
+            except Exception:  # one bad record must not break the index
                 continue
 
     @staticmethod
     def _short_name(name: str) -> str:
         n = name
         if n.startswith("United States "):
-            n = n[len("United States "):]
+            n = n[len("United States ") :]
         for ch in _CHAMBER_QUALIFIERS:
             if n.startswith(ch):
-                n = n[len(ch):]
+                n = n[len(ch) :]
                 break
         for desc in _COMMITTEE_DESCRIPTORS:
             if n.startswith(desc):
-                n = n[len(desc):]
+                n = n[len(desc) :]
                 break
         return n
 
@@ -252,7 +278,7 @@ class CommitteeResolver:
         """Best-effort match. Never raises; returns NO_MATCH when unsure."""
         try:
             return self._resolve(member_name, chamber)
-        except Exception as e:                     # enrichment must never break ingestion
+        except Exception as e:  # enrichment must never break ingestion
             log.debug("committee resolve failed for %r/%r: %s", member_name, chamber, e)
             return NO_MATCH
 
@@ -277,8 +303,9 @@ class CommitteeResolver:
         if not candidates:
             return None
         if want_type:
-            filtered = {b for b in candidates
-                        if self._bioguide_meta.get(b, {}).get("type") == want_type}
+            filtered = {
+                b for b in candidates if self._bioguide_meta.get(b, {}).get("type") == want_type
+            }
             candidates = filtered or candidates
         return next(iter(candidates)) if len(candidates) == 1 else None
 
@@ -299,11 +326,11 @@ class CommitteeResolver:
     # ── loading ──
 
     @classmethod
-    def from_dataset_dir(cls, path) -> "CommitteeResolver":
+    def from_dataset_dir(cls, path) -> CommitteeResolver:
         path = Path(path)
         loaded = {}
         for fname in DATASET_FILES:
-            with open(path / fname, "r", encoding="utf-8") as fh:
+            with open(path / fname, encoding="utf-8") as fh:
                 loaded[fname] = json.load(fh)
         return cls(
             legislators=loaded["legislators-current.json"],
@@ -319,7 +346,7 @@ class CommitteeResolver:
         base_url: str | None = None,
         max_age_days: int | None = None,
         refresh: bool = False,
-    ) -> "CommitteeResolver":
+    ) -> CommitteeResolver:
         """Load the resolver, refreshing the on-disk cache when stale/missing.
 
         Fails soft: if the dataset can't be fetched and no cache exists, returns
@@ -335,14 +362,16 @@ class CommitteeResolver:
         except Exception as e:
             log.warning(
                 "congress-legislators dataset unavailable (%s) — committee "
-                "enrichment disabled for this run (committee left null)", e
+                "enrichment disabled for this run (committee left null)",
+                e,
             )
             return cls(legislators=[], memberships={}, committees=[])
 
 
 # ─── Enrichment helper (used by the Senate/House ingest functions) ────────────
 
-def enrich_committees(rows: list[dict], resolver: "CommitteeResolver | None") -> list[dict]:
+
+def enrich_committees(rows: list[dict], resolver: CommitteeResolver | None) -> list[dict]:
     """Populate each row's ``committee`` from the resolver, in place.
 
     Best-effort: a None resolver is a no-op, and any member that doesn't resolve
@@ -358,6 +387,7 @@ def enrich_committees(rows: list[dict], resolver: "CommitteeResolver | None") ->
 
 
 # ─── Cache / download ─────────────────────────────────────────────────────────
+
 
 def _is_stale(path: Path, max_age_days: int) -> bool:
     if not path.exists():
@@ -390,15 +420,19 @@ def _refresh_cache(cache_dir: Path, base_url: str, max_age_days: int, *, force: 
             log.info("congress-legislators: refreshed %s (%d bytes)", fname, len(data))
         except Exception as e:
             if dest.exists():
-                log.warning("congress-legislators: re-download of %s failed (%s) — "
-                            "using existing cached copy", fname, e)
+                log.warning(
+                    "congress-legislators: re-download of %s failed (%s) — "
+                    "using existing cached copy",
+                    fname,
+                    e,
+                )
             else:
                 raise
 
 
 # ─── Module-level default resolver (lazy singleton) ───────────────────────────
 
-_default_resolver: "CommitteeResolver | None" = None
+_default_resolver: CommitteeResolver | None = None
 
 
 def get_default_resolver(*, refresh: bool = False) -> CommitteeResolver:
@@ -410,6 +444,7 @@ def get_default_resolver(*, refresh: bool = False) -> CommitteeResolver:
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 def _main(argv=None) -> int:
     import argparse
@@ -429,20 +464,35 @@ def _main(argv=None) -> int:
     resolver = CommitteeResolver.load(refresh=args.refresh)
 
     if args.preflight or not args.name:
-        log.info("Loaded %d current legislators; %d have committee assignments.",
-                 len(resolver._bioguide_meta), len(resolver._bioguide_to_committees))
+        log.info(
+            "Loaded %d current legislators; %d have committee assignments.",
+            len(resolver._bioguide_meta),
+            len(resolver._bioguide_to_committees),
+        )
         if not args.name:
             return 0
 
     match = resolver.resolve(args.name, args.chamber)
     if match.matched:
-        print(json.dumps({
-            "name": args.name, "chamber": match.chamber, "party": match.party,
-            "committees": list(match.committees), "committee_string": match.committee_string,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "name": args.name,
+                    "chamber": match.chamber,
+                    "party": match.party,
+                    "committees": list(match.committees),
+                    "committee_string": match.committee_string,
+                },
+                indent=2,
+            )
+        )
     else:
-        print(json.dumps({"name": args.name, "chamber": args.chamber, "matched": False,
-                          "committee": None}, indent=2))
+        print(
+            json.dumps(
+                {"name": args.name, "chamber": args.chamber, "matched": False, "committee": None},
+                indent=2,
+            )
+        )
     return 0
 
 

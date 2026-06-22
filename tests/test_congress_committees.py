@@ -19,14 +19,16 @@ from tradingagents.dataflows.congress_committees import (
     enrich_committees,
 )
 
-
 # ─── Fixtures: shapes match the real congress-legislators JSON files ──────────
 
 # committees-current.json is a list of committee dicts.
 COMMITTEES = [
     {"type": "senate", "name": "Senate Committee on Armed Services", "thomas_id": "SSAS"},
-    {"type": "senate", "name": "Senate Committee on Banking, Housing, and Urban Affairs",
-     "thomas_id": "SSBK"},
+    {
+        "type": "senate",
+        "name": "Senate Committee on Banking, Housing, and Urban Affairs",
+        "thomas_id": "SSBK",
+    },
     {"type": "senate", "name": "Senate Special Committee on Aging", "thomas_id": "SPAG"},
     {"type": "house", "name": "House Committee on Financial Services", "thomas_id": "HSBA"},
 ]
@@ -227,20 +229,27 @@ class TestRobustness:
 
     def test_malformed_legislator_records_are_skipped(self):
         legislators = [
-            {"id": {}, "name": {}},                  # no bioguide
+            {"id": {}, "name": {}},  # no bioguide
             {"id": {"bioguide": "X"}, "terms": []},  # no name, no terms
-            None,                                    # junk
+            None,  # junk
         ] + LEGISLATORS
-        r = CommitteeResolver(legislators=legislators, memberships=MEMBERSHIPS,
-                              committees=COMMITTEES)
+        r = CommitteeResolver(
+            legislators=legislators, memberships=MEMBERSHIPS, committees=COMMITTEES
+        )
         assert r.resolve("Tommy Tuberville", "senate").matched
 
     def test_member_with_no_committee_assignments(self):
-        legislators = [{
-            "id": {"bioguide": "Z000001"},
-            "name": {"first": "Solo", "last": "Backbencher", "official_full": "Solo Backbencher"},
-            "terms": [{"type": "rep", "party": "Independent"}],
-        }]
+        legislators = [
+            {
+                "id": {"bioguide": "Z000001"},
+                "name": {
+                    "first": "Solo",
+                    "last": "Backbencher",
+                    "official_full": "Solo Backbencher",
+                },
+                "terms": [{"type": "rep", "party": "Independent"}],
+            }
+        ]
         r = CommitteeResolver(legislators=legislators, memberships={}, committees=[])
         m = r.resolve("Solo Backbencher", "House")
         assert m.matched and m.committees == () and m.committee_string is None

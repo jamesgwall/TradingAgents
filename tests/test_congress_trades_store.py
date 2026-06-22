@@ -22,7 +22,6 @@ from tradingagents.dataflows.congress_trades_store import (
     fetch_congressional_trades,
 )
 
-
 # ─── Fakes ────────────────────────────────────────────────────────────────────
 
 
@@ -121,7 +120,10 @@ class TestNormalization:
         assert out["lag_days"] == 40
 
     def test_owner_type_defaults_to_self(self):
-        assert _row_to_normalized({"member_name": "X", "disclosure_date": date(2026, 4, 10)})["trader"] == "Self"
+        assert (
+            _row_to_normalized({"member_name": "X", "disclosure_date": date(2026, 4, 10)})["trader"]
+            == "Self"
+        )
 
     def test_transaction_and_chamber_normalizers(self):
         assert _normalize_transaction("Sale (Full)") == "Sell"
@@ -137,15 +139,38 @@ class TestNormalization:
 class TestQuery:
     def _cursor(self):
         description = [
-            ("source_filing_id",), ("row_index",), ("chamber",), ("member_name",),
-            ("party",), ("owner_type",), ("committee",), ("ticker",), ("asset_name",),
-            ("transaction_type",), ("amount_range",), ("transaction_date",),
-            ("disclosure_date",), ("source_url",),
+            ("source_filing_id",),
+            ("row_index",),
+            ("chamber",),
+            ("member_name",),
+            ("party",),
+            ("owner_type",),
+            ("committee",),
+            ("ticker",),
+            ("asset_name",),
+            ("transaction_type",),
+            ("amount_range",),
+            ("transaction_date",),
+            ("disclosure_date",),
+            ("source_url",),
         ]
         rows = [
-            ("F1", 0, "Senate", "Jane Smith", "D", "self", "Banking", "AAPL",
-             "Apple Inc", "Purchase", "$15K-$50K", date(2026, 3, 1),
-             date(2026, 4, 10), "http://x"),
+            (
+                "F1",
+                0,
+                "Senate",
+                "Jane Smith",
+                "D",
+                "self",
+                "Banking",
+                "AAPL",
+                "Apple Inc",
+                "Purchase",
+                "$15K-$50K",
+                date(2026, 3, 1),
+                date(2026, 4, 10),
+                "http://x",
+            ),
         ]
         return _FakeCursor(rows=rows, description=description)
 
@@ -212,12 +237,24 @@ class TestUpsert:
         cur = _FakeCursor()
         conn = _FakeConn(cur)
         store = _store_with(conn)
-        n = store.upsert([
-            {"source_filing_id": "F1", "row_index": 0, "member_name": "X",
-             "ticker": "AAPL", "disclosure_date": date(2026, 4, 10)},
-            {"source_filing_id": "F1", "row_index": 1, "member_name": "Y",
-             "ticker": "AAPL", "disclosure_date": date(2026, 4, 10)},
-        ])
+        n = store.upsert(
+            [
+                {
+                    "source_filing_id": "F1",
+                    "row_index": 0,
+                    "member_name": "X",
+                    "ticker": "AAPL",
+                    "disclosure_date": date(2026, 4, 10),
+                },
+                {
+                    "source_filing_id": "F1",
+                    "row_index": 1,
+                    "member_name": "Y",
+                    "ticker": "AAPL",
+                    "disclosure_date": date(2026, 4, 10),
+                },
+            ]
+        )
         assert n == 2
         assert len(cur.executed) == 2
         sql = cur.executed[0][0]
@@ -238,9 +275,7 @@ class TestFetchWrapper:
         def boom():
             raise OSError("connection refused")
 
-        monkeypatch.setattr(
-            "tradingagents.dataflows.congress_trades_store._open_conn", boom
-        )
+        monkeypatch.setattr("tradingagents.dataflows.congress_trades_store._open_conn", boom)
         with pytest.raises(CongressTradesError):
             fetch_congressional_trades("AAPL", as_of="2026-04-15")
 
@@ -265,14 +300,24 @@ class TestRealRoundTrip:
         s.close()
 
     def _fixture_rows(self):
-        return [{
-            "source_filing_id": "TEST_RT", "row_index": 0, "chamber": "Senate",
-            "member_name": "Test Member", "party": "D", "owner_type": "self",
-            "committee": "Banking", "ticker": "ZZZT", "asset_name": "Test Co",
-            "transaction_type": "Purchase", "amount_range": "$1K-$15K",
-            "transaction_date": date(2026, 3, 1), "disclosure_date": date(2026, 4, 10),
-            "source_url": "http://example.test",
-        }]
+        return [
+            {
+                "source_filing_id": "TEST_RT",
+                "row_index": 0,
+                "chamber": "Senate",
+                "member_name": "Test Member",
+                "party": "D",
+                "owner_type": "self",
+                "committee": "Banking",
+                "ticker": "ZZZT",
+                "asset_name": "Test Co",
+                "transaction_type": "Purchase",
+                "amount_range": "$1K-$15K",
+                "transaction_date": date(2026, 3, 1),
+                "disclosure_date": date(2026, 4, 10),
+                "source_url": "http://example.test",
+            }
+        ]
 
     def test_upsert_is_idempotent(self, store):
         store.upsert(self._fixture_rows())

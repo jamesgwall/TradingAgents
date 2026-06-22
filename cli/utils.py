@@ -92,11 +92,7 @@ def filter_analysts_for_asset_type(
 ) -> list[AnalystType]:
     if asset_type != AssetType.CRYPTO:
         return analysts
-    return [
-        analyst
-        for analyst in analysts
-        if analyst != AnalystType.FUNDAMENTALS
-    ]
+    return [analyst for analyst in analysts if analyst != AnalystType.FUNDAMENTALS]
 
 
 def get_analysis_date() -> str:
@@ -115,8 +111,9 @@ def get_analysis_date() -> str:
 
     date = questionary.text(
         "Enter the analysis date (YYYY-MM-DD):",
-        validate=lambda x: validate_date(x.strip())
-        or "Please enter a valid date in YYYY-MM-DD format.",
+        validate=lambda x: (
+            validate_date(x.strip()) or "Please enter a valid date in YYYY-MM-DD format."
+        ),
         style=questionary.Style(
             [
                 ("text", "fg:green"),
@@ -176,9 +173,7 @@ def select_research_depth() -> int:
 
     choice = questionary.select(
         "Select Your [Research Depth]:",
-        choices=[
-            questionary.Choice(display, value=value) for display, value in DEPTH_OPTIONS
-        ],
+        choices=[questionary.Choice(display, value=value) for display, value in DEPTH_OPTIONS],
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -204,14 +199,24 @@ def select_research_depth() -> int:
 # shortlist. Provider names are stable (unlike model IDs), so this rarely needs
 # touching; anything not here is still reachable via Custom ID.
 _OPENROUTER_MAINSTREAM = {
-    "openai", "anthropic", "google", "deepseek", "qwen", "mistralai",
-    "meta-llama", "x-ai", "z-ai", "minimax", "moonshotai",
+    "openai",
+    "anthropic",
+    "google",
+    "deepseek",
+    "qwen",
+    "mistralai",
+    "meta-llama",
+    "x-ai",
+    "z-ai",
+    "minimax",
+    "moonshotai",
 }
 
 
 def _fetch_openrouter_models() -> list[tuple[str, str]]:
     """Fetch available models from the OpenRouter API."""
     import requests
+
     try:
         resp = requests.get("https://openrouter.ai/api/v1/models", timeout=10)
         resp.raise_for_status()
@@ -253,7 +258,8 @@ def select_openrouter_model(mode: str) -> str:
     # Prefer the newest from mainstream providers so the shortlist isn't crowded
     # out by niche/experimental releases; fall back to all if none match.
     mainstream = [
-        (name, mid) for name, mid in models
+        (name, mid)
+        for name, mid in models
         if not mid.startswith("~")  # skip variant/alias duplicate routes
         and mid.split("/", 1)[0] in _OPENROUTER_MAINSTREAM
     ]
@@ -266,11 +272,13 @@ def select_openrouter_model(mode: str) -> str:
         f"Select Your [{mode.title()}-Thinking] OpenRouter Model (latest available):",
         choices=choices,
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
-        style=questionary.Style([
-            ("selected", "fg:magenta noinherit"),
-            ("highlighted", "fg:magenta noinherit"),
-            ("pointer", "fg:magenta noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:magenta noinherit"),
+                ("highlighted", "fg:magenta noinherit"),
+                ("pointer", "fg:magenta noinherit"),
+            ]
+        ),
     ).ask()
 
     if choice is None:
@@ -334,6 +342,7 @@ def select_shallow_thinking_agent(provider) -> str:
 def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
+
 
 def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     """(display_name, provider_key, base_url) for every supported provider.
@@ -446,8 +455,10 @@ def prompt_openai_compatible_url() -> str:
     url = questionary.text(
         "Enter the OpenAI-compatible base URL "
         "(e.g. http://localhost:8000/v1 for vLLM, http://localhost:1234/v1 for LM Studio):",
-        validate=lambda x: x.strip().startswith(("http://", "https://"))
-        or "Enter a URL starting with http:// or https://",
+        validate=lambda x: (
+            x.strip().startswith(("http://", "https://"))
+            or "Enter a URL starting with http:// or https://"
+        ),
     ).ask()
     if not url:
         console.print("\n[red]No endpoint URL provided. Exiting...[/red]")
@@ -493,11 +504,13 @@ def ask_openai_reasoning_effort() -> str:
     return questionary.select(
         "Select Reasoning Effort:",
         choices=choices,
-        style=questionary.Style([
-            ("selected", "fg:cyan noinherit"),
-            ("highlighted", "fg:cyan noinherit"),
-            ("pointer", "fg:cyan noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -515,11 +528,13 @@ def ask_anthropic_effort() -> str | None:
             questionary.Choice("Medium (balanced)", "medium"),
             questionary.Choice("Low (faster, cheaper)", "low"),
         ],
-        style=questionary.Style([
-            ("selected", "fg:cyan noinherit"),
-            ("highlighted", "fg:cyan noinherit"),
-            ("pointer", "fg:cyan noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -535,11 +550,13 @@ def ask_gemini_thinking_config() -> str | None:
             questionary.Choice("Enable Thinking (recommended)", "high"),
             questionary.Choice("Minimal/Disable Thinking", "minimal"),
         ],
-        style=questionary.Style([
-            ("selected", "fg:green noinherit"),
-            ("highlighted", "fg:green noinherit"),
-            ("pointer", "fg:green noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:green noinherit"),
+                ("highlighted", "fg:green noinherit"),
+                ("pointer", "fg:green noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -561,11 +578,13 @@ def ask_glm_region() -> tuple[str, str]:
                 value=("glm-cn", "https://open.bigmodel.cn/api/paas/v4/"),
             ),
         ],
-        style=questionary.Style([
-            ("selected", "fg:cyan noinherit"),
-            ("highlighted", "fg:cyan noinherit"),
-            ("pointer", "fg:cyan noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -588,11 +607,13 @@ def ask_qwen_region() -> tuple[str, str]:
                 value=("qwen-cn", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
             ),
         ],
-        style=questionary.Style([
-            ("selected", "fg:cyan noinherit"),
-            ("highlighted", "fg:cyan noinherit"),
-            ("pointer", "fg:cyan noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -615,11 +636,13 @@ def ask_minimax_region() -> tuple[str, str]:
                 value=("minimax-cn", "https://api.minimaxi.com/v1"),
             ),
         ],
-        style=questionary.Style([
-            ("selected", "fg:cyan noinherit"),
-            ("highlighted", "fg:cyan noinherit"),
-            ("pointer", "fg:cyan noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
     ).ask()
 
 
@@ -671,6 +694,7 @@ def ensure_api_key(provider: str) -> str | None:
     # Key-optional providers (generic OpenAI-compatible / local servers) read the
     # key when present but must never force an interactive prompt.
     from tradingagents.llm_clients.openai_client import OPENAI_COMPATIBLE_PROVIDERS
+
     spec = OPENAI_COMPATIBLE_PROVIDERS.get(provider.lower())
     if spec is not None and spec.key_optional:
         return os.environ.get(env_var)
@@ -679,20 +703,18 @@ def ensure_api_key(provider: str) -> str | None:
     if existing:
         return existing
 
-    console.print(
-        f"\n[yellow]{env_var} is not set in your environment.[/yellow]"
-    )
+    console.print(f"\n[yellow]{env_var} is not set in your environment.[/yellow]")
     key = questionary.password(
         f"Paste your {env_var} (will be saved to .env):",
-        style=questionary.Style([
-            ("text", "fg:cyan"),
-            ("highlighted", "noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("text", "fg:cyan"),
+                ("highlighted", "noinherit"),
+            ]
+        ),
     ).ask()
     if not key:
-        console.print(
-            f"[red]Skipped. API calls will fail until {env_var} is set.[/red]"
-        )
+        console.print(f"[red]Skipped. API calls will fail until {env_var} is set.[/red]")
         return None
 
     env_path = find_dotenv(usecwd=True) or str(Path.cwd() / ".env")
@@ -721,11 +743,13 @@ def ask_output_language() -> str:
             questionary.Choice("Russian (Русский)", "Russian"),
             questionary.Choice("Custom language", "custom"),
         ],
-        style=questionary.Style([
-            ("selected", "fg:yellow noinherit"),
-            ("highlighted", "fg:yellow noinherit"),
-            ("pointer", "fg:yellow noinherit"),
-        ]),
+        style=questionary.Style(
+            [
+                ("selected", "fg:yellow noinherit"),
+                ("highlighted", "fg:yellow noinherit"),
+                ("pointer", "fg:yellow noinherit"),
+            ]
+        ),
     ).ask()
 
     # Output language has a sensible default, so a cancel falls back to English
@@ -733,9 +757,12 @@ def ask_output_language() -> str:
     if choice is None:
         return "English"
     if choice == "custom":
-        return (questionary.text(
-            "Enter language name (e.g. Turkish, Vietnamese, Thai, Indonesian):",
-            validate=lambda x: len(x.strip()) > 0 or "Please enter a language name.",
-        ).ask() or "").strip() or "English"
+        return (
+            questionary.text(
+                "Enter language name (e.g. Turkish, Vietnamese, Thai, Indonesian):",
+                validate=lambda x: len(x.strip()) > 0 or "Please enter a language name.",
+            ).ask()
+            or ""
+        ).strip() or "English"
 
     return choice

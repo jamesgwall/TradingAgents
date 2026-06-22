@@ -123,7 +123,11 @@ class _FakeSession:
     def post(self, url, data=None, headers=None, timeout=None):
         self.posts.append({"url": url, "data": data, "headers": headers})
         if url.endswith(REPORT_DATA_PATH):
-            page = self._report_pages.pop(0) if self._report_pages else {"data": [], "recordsFiltered": 0}
+            page = (
+                self._report_pages.pop(0)
+                if self._report_pages
+                else {"data": [], "recordsFiltered": 0}
+            )
             return _FakeResponse(json_data=page)
         return _FakeResponse(text="agreement accepted")
 
@@ -187,7 +191,9 @@ class TestFetcher:
         assert report_posts[1]["data"]["start"] == "100"
 
     def test_handshake_without_token_raises(self):
-        session = _FakeSession(home_html="<form>no token here</form>", report_pages=[], set_cookie=False)
+        session = _FakeSession(
+            home_html="<form>no token here</form>", report_pages=[], set_cookie=False
+        )
         client = SenateEFDClient(session=session)
         with pytest.raises(SenateEFDError):
             client.fetch_ptr_filings(date(2026, 4, 1), date(2026, 4, 30))
@@ -236,12 +242,20 @@ class _FakeClient:
 class TestIngest:
     def _filings(self):
         return [
-            {"filing_id": "u1", "member_name": "Jane Smith",
-             "report_url": "https://efdsearch.senate.gov/search/view/ptr/u1/",
-             "filed_date": date(2026, 4, 10), "is_paper": False},
-            {"filing_id": "p1", "member_name": "Paper Filer",
-             "report_url": "https://efdsearch.senate.gov/search/view/paper/p1/",
-             "filed_date": date(2026, 4, 2), "is_paper": True},
+            {
+                "filing_id": "u1",
+                "member_name": "Jane Smith",
+                "report_url": "https://efdsearch.senate.gov/search/view/ptr/u1/",
+                "filed_date": date(2026, 4, 10),
+                "is_paper": False,
+            },
+            {
+                "filing_id": "p1",
+                "member_name": "Paper Filer",
+                "report_url": "https://efdsearch.senate.gov/search/view/paper/p1/",
+                "filed_date": date(2026, 4, 2),
+                "is_paper": True,
+            },
         ]
 
     def test_parses_efiled_skips_paper_and_upserts(self):
@@ -281,14 +295,20 @@ class TestIngest:
 
     def test_committee_enrichment_populates_rows(self):
         """Slice 4: an injected resolver populates the committee column."""
+
         class _FakeResolver:
             def committee_for(self, member_name, chamber):
                 return "Banking" if member_name == "Jane Smith" else None
 
         store = _FakeStore()
         client = _FakeClient(self._filings(), _FIXTURE.read_text())
-        ingest_senate_ptrs(client=client, store=store, days=30, as_of="2026-04-30",
-                           committee_resolver=_FakeResolver())
+        ingest_senate_ptrs(
+            client=client,
+            store=store,
+            days=30,
+            as_of="2026-04-30",
+            committee_resolver=_FakeResolver(),
+        )
         assert {r["committee"] for r in store.upserted} == {"Banking"}
 
     def test_no_resolver_leaves_committee_null(self):
@@ -306,9 +326,7 @@ class TestLiveSmoke:
     def test_real_handshake_returns_filings(self):
         client = SenateEFDClient(timeout=20)
         try:
-            filings = client.fetch_ptr_filings(
-                date.today().replace(day=1), date.today()
-            )
+            filings = client.fetch_ptr_filings(date.today().replace(day=1), date.today())
         except SenateEFDError:
             pytest.skip("EFD portal not reachable")
         # The portal always has recent PTRs; just prove the round trip works.

@@ -65,7 +65,7 @@ class TestSeededRow:
             result = create_congressional_trades_analyst(_llm())(_state())
         report = result["congressional_trades_report"]
         assert report != CONGRESS_STUB_MARKER
-        assert "Jane Smith" in report          # row rendered in the table
+        assert "Jane Smith" in report  # row rendered in the table
         assert "Notable Trades" in report
         assert result["messages"][0].content == report
 

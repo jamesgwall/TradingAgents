@@ -84,7 +84,7 @@ def create_congressional_trades_analyst(llm, window_days: int = 180):
     """
 
     def congressional_trades_analyst_node(state: dict) -> dict:
-        ticker     = state["company_of_interest"]
+        ticker = state["company_of_interest"]
         trade_date = state["trade_date"]
 
         try:
@@ -122,6 +122,7 @@ def create_congressional_trades_analyst(llm, window_days: int = 180):
             }
 
         from tradingagents.dataflows.congress_trades_store import _parse_date  # local: date helper
+
         reference = _parse_date(trade_date) or date.today()
         stats = _build_stats(rows, reference)
         table = _build_table(rows)

@@ -46,9 +46,7 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
         self.analyst_concurrency_limit = analyst_concurrency_limit
 
-    def setup_graph(
-        self, selected_analysts=("market", "social", "news", "fundamentals")
-    ):
+    def setup_graph(self, selected_analysts=("market", "social", "news", "fundamentals")):
         """Set up and compile the agent workflow graph.
 
         Args:
@@ -58,7 +56,9 @@ class GraphSetup:
                 - "news": News analyst
                 - "fundamentals": Fundamentals analyst
         """
-        plan = build_analyst_execution_plan(selected_analysts, concurrency_limit=self.analyst_concurrency_limit)
+        plan = build_analyst_execution_plan(
+            selected_analysts, concurrency_limit=self.analyst_concurrency_limit
+        )
 
         analyst_factories = {
             "market": lambda: create_market_analyst(self.quick_thinking_llm),

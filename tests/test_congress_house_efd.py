@@ -79,12 +79,30 @@ class TestParseAndNormalize:
         # ticker is wrapped in parens to prove paren-stripping; the Treasury row
         # has no ticker and must be dropped.
         return [
-            {"owner": "SP", "ticker": "(AAPL)", "asset_name": "Apple Inc. (AAPL)",
-             "type": "Purchase", "date": "03/01/2026", "amount": "$15,001 - $50,000"},
-            {"owner": "JT", "ticker": "NVDA", "asset_name": "NVIDIA Corporation",
-             "type": "Sale (partial)", "date": "03/04/2026", "amount": "$1,001 - $15,000"},
-            {"owner": "SP", "ticker": "", "asset_name": "US Treasury Note 2.5% 2030",
-             "type": "Purchase", "date": "03/06/2026", "amount": "$50,001 - $100,000"},
+            {
+                "owner": "SP",
+                "ticker": "(AAPL)",
+                "asset_name": "Apple Inc. (AAPL)",
+                "type": "Purchase",
+                "date": "03/01/2026",
+                "amount": "$15,001 - $50,000",
+            },
+            {
+                "owner": "JT",
+                "ticker": "NVDA",
+                "asset_name": "NVIDIA Corporation",
+                "type": "Sale (partial)",
+                "date": "03/04/2026",
+                "amount": "$1,001 - $15,000",
+            },
+            {
+                "owner": "SP",
+                "ticker": "",
+                "asset_name": "US Treasury Note 2.5% 2030",
+                "type": "Purchase",
+                "date": "03/06/2026",
+                "amount": "$50,001 - $100,000",
+            },
         ]
 
     def test_prompt_contains_instructions_and_extracted_text(self):
@@ -119,7 +137,7 @@ class TestParseAndNormalize:
             "party": "",
             "owner_type": "SP",
             "committee": None,
-            "ticker": "AAPL",                       # parens stripped
+            "ticker": "AAPL",  # parens stripped
             "asset_name": "Apple Inc. (AAPL)",
             "transaction_type": "Purchase",
             "amount_range": "$15,001 - $50,000",
@@ -155,9 +173,9 @@ def _index_zip(rows: list[str], *, name="2026FD.txt") -> bytes:
 class TestIndex:
     def test_filters_to_ptr_and_classifies_by_docid_prefix(self):
         rows = [
-            "Hon.\tSmith\tJane\t\tP\tCA01\t2026\t03/15/2026\t20260001",   # e-filed PTR
-            "Hon.\tDoe\tJohn\t\tP\tNY02\t2026\t03/10/2026\t10260002",     # paper PTR (prefix 1)
-            "Hon.\tRoe\tRich\t\tO\tTX03\t2026\t05/15/2026\t20260003",     # not a PTR (FilingType O)
+            "Hon.\tSmith\tJane\t\tP\tCA01\t2026\t03/15/2026\t20260001",  # e-filed PTR
+            "Hon.\tDoe\tJohn\t\tP\tNY02\t2026\t03/10/2026\t10260002",  # paper PTR (prefix 1)
+            "Hon.\tRoe\tRich\t\tO\tTX03\t2026\t05/15/2026\t20260003",  # not a PTR (FilingType O)
         ]
         filings = HouseEFDClient.parse_index(_index_zip(rows), 2026)
         assert len(filings) == 2  # only the two PTRs; the FD original is dropped
@@ -236,12 +254,30 @@ class _FakeClient:
 
 def _good_structurer(prompt):
     return [
-        {"owner": "SP", "ticker": "(AAPL)", "asset_name": "Apple Inc. (AAPL)",
-         "type": "Purchase", "date": "03/01/2026", "amount": "$15,001 - $50,000"},
-        {"owner": "JT", "ticker": "NVDA", "asset_name": "NVIDIA Corporation",
-         "type": "Sale", "date": "03/04/2026", "amount": "$1,001 - $15,000"},
-        {"owner": "SP", "ticker": "", "asset_name": "US Treasury Note",
-         "type": "Purchase", "date": "03/06/2026", "amount": "$50,001 - $100,000"},
+        {
+            "owner": "SP",
+            "ticker": "(AAPL)",
+            "asset_name": "Apple Inc. (AAPL)",
+            "type": "Purchase",
+            "date": "03/01/2026",
+            "amount": "$15,001 - $50,000",
+        },
+        {
+            "owner": "JT",
+            "ticker": "NVDA",
+            "asset_name": "NVIDIA Corporation",
+            "type": "Sale",
+            "date": "03/04/2026",
+            "amount": "$1,001 - $15,000",
+        },
+        {
+            "owner": "SP",
+            "ticker": "",
+            "asset_name": "US Treasury Note",
+            "type": "Purchase",
+            "date": "03/06/2026",
+            "amount": "$50,001 - $100,000",
+        },
     ]
 
 
@@ -249,18 +285,32 @@ def _good_structurer(prompt):
 class TestIngest:
     def _filings(self):
         return [
-            _filing(filing_id="20260001", docid="20260001", is_paper=False,
-                    report_url="https://x/ptr/efiled.pdf"),
-            _filing(filing_id="10260002", docid="10260002", is_paper=True,
-                    member_name="Paper Filer", report_url=""),
+            _filing(
+                filing_id="20260001",
+                docid="20260001",
+                is_paper=False,
+                report_url="https://x/ptr/efiled.pdf",
+            ),
+            _filing(
+                filing_id="10260002",
+                docid="10260002",
+                is_paper=True,
+                member_name="Paper Filer",
+                report_url="",
+            ),
         ]
 
     def test_parses_efiled_skips_paper_and_upserts(self):
         store = _FakeStore()
-        client = _FakeClient(self._filings(), {"https://x/ptr/efiled.pdf": _EFILED_PDF.read_bytes()})
+        client = _FakeClient(
+            self._filings(), {"https://x/ptr/efiled.pdf": _EFILED_PDF.read_bytes()}
+        )
         summary = ingest_house_ptrs(
-            client=client, store=store, structurer=_good_structurer,
-            year=2026, as_of="2026-03-31",
+            client=client,
+            store=store,
+            structurer=_good_structurer,
+            year=2026,
+            as_of="2026-03-31",
         )
         assert summary["filings_total"] == 2
         assert summary["filings_parsed"] == 1
@@ -278,8 +328,11 @@ class TestIngest:
         client = _FakeClient(filings, {"https://x/ptr/scan.pdf": _SCANNED_PDF.read_bytes()})
         store = _FakeStore()
         summary = ingest_house_ptrs(
-            client=client, store=store, structurer=_good_structurer,
-            year=2026, as_of="2026-03-31",
+            client=client,
+            store=store,
+            structurer=_good_structurer,
+            year=2026,
+            as_of="2026-03-31",
         )
         assert summary["filings_skipped_scanned"] == 1
         assert summary["rows_upserted"] == 0
@@ -292,8 +345,12 @@ class TestIngest:
             {"https://x/ptr/efiled.pdf": _EFILED_PDF.read_bytes()},
         )
         summary = ingest_house_ptrs(
-            client=client, store=store, structurer=_good_structurer,
-            year=2026, as_of="2026-03-31", dry_run=True,
+            client=client,
+            store=store,
+            structurer=_good_structurer,
+            year=2026,
+            as_of="2026-03-31",
+            dry_run=True,
         )
         assert summary["rows_parsed"] == 2
         assert summary["rows_upserted"] == 0
@@ -309,8 +366,11 @@ class TestIngest:
         )
         store = _FakeStore()
         summary = ingest_house_ptrs(
-            client=client, store=store, structurer=_boom,
-            year=2026, as_of="2026-03-31",
+            client=client,
+            store=store,
+            structurer=_boom,
+            year=2026,
+            as_of="2026-03-31",
         )
         assert summary["filings_failed"] == 1
         assert summary["rows_upserted"] == 0

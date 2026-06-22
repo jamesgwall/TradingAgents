@@ -29,7 +29,7 @@ def create_transcript_analyst(llm):
     """
 
     def transcript_analyst_node(state: dict) -> dict:
-        ticker     = state["company_of_interest"]
+        ticker = state["company_of_interest"]
         trade_date = state["trade_date"]
 
         try:
@@ -59,7 +59,7 @@ def create_transcript_analyst(llm):
             # Step 2: dual semantic search
             ticker_query = f"{ticker} earnings revenue guidance outlook valuation"
             ticker_results = store.ticker_query(ticker, ticker_query)
-            macro_results  = store.macro_query(macro_query)
+            macro_results = store.macro_query(macro_query)
 
             # Step 3: merge and deduplicate
             chunks = store.merge_and_deduplicate(ticker_results, macro_results)
@@ -93,12 +93,13 @@ def create_transcript_analyst(llm):
                 f"If the transcripts contain no relevant signal for {ticker}, state that explicitly."
             )
             synth_resp = llm.invoke(synthesis_prompt)
-            report = (
-                synth_resp.content if hasattr(synth_resp, "content") else str(synth_resp)
-            )
+            report = synth_resp.content if hasattr(synth_resp, "content") else str(synth_resp)
 
         except Exception as e:
-            log.warning(f"Transcript analyst unavailable for {ticker} — DB or Ollama unreachable: {e}", exc_info=True)
+            log.warning(
+                f"Transcript analyst unavailable for {ticker} — DB or Ollama unreachable: {e}",
+                exc_info=True,
+            )
             report = TRANSCRIPT_STUB_MARKER
         finally:
             if store is not None:

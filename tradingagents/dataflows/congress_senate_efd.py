@@ -53,11 +53,11 @@ SEARCH_PATH = "/search/"
 REPORT_DATA_PATH = "/search/report/data/"
 
 # Report-type and filer-type codes used by the EFD report-data form.
-PTR_REPORT_TYPE = "11"                 # Periodic Transaction Report
+PTR_REPORT_TYPE = "11"  # Periodic Transaction Report
 SENATOR_FILER_TYPES = ("1", "4", "5")  # Senator, Candidate, Former Senator
 
-PAGE_LENGTH = 100        # DataTables page size for the report-data query
-REQUEST_TIMEOUT = 30     # seconds, consistent with the other vendors
+PAGE_LENGTH = 100  # DataTables page size for the report-data query
+REQUEST_TIMEOUT = 30  # seconds, consistent with the other vendors
 DEFAULT_LOOKBACK_DAYS = 30
 
 _UA = "tradingagents/0.2 (+https://github.com/TauricResearch/TradingAgents)"
@@ -77,6 +77,7 @@ class SenateEFDError(RuntimeError):
 
 
 # ─── Small parsing helpers ────────────────────────────────────────────────────
+
 
 def _clean(value) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
@@ -155,6 +156,7 @@ def _filing_from_row(row: list) -> dict:
 
 # ─── HTML report parser (deterministic, no LLM) ───────────────────────────────
 
+
 def parse_ptr_html(html: str, *, filing: dict) -> list[dict]:
     """Parse an e-filed Senate PTR view page into ``congress_trades`` rows.
 
@@ -174,26 +176,29 @@ def parse_ptr_html(html: str, *, filing: dict) -> list[dict]:
         num, txn_date, owner, ticker, asset_name, _asset_type, txn_type, amount = cells[:8]
         if ticker.lower() in _NO_TICKER:
             continue
-        rows.append({
-            "source_filing_id": filing["filing_id"],
-            "row_index": _to_int(num, default=len(rows)),
-            "chamber": "Senate",
-            "member_name": filing["member_name"],
-            "party": "",
-            "owner_type": owner,
-            "committee": None,
-            "ticker": ticker.upper(),
-            "asset_name": asset_name,
-            "transaction_type": txn_type,
-            "amount_range": amount,
-            "transaction_date": _parse_mdy(txn_date),
-            "disclosure_date": filing["filed_date"],
-            "source_url": filing["report_url"],
-        })
+        rows.append(
+            {
+                "source_filing_id": filing["filing_id"],
+                "row_index": _to_int(num, default=len(rows)),
+                "chamber": "Senate",
+                "member_name": filing["member_name"],
+                "party": "",
+                "owner_type": owner,
+                "committee": None,
+                "ticker": ticker.upper(),
+                "asset_name": asset_name,
+                "transaction_type": txn_type,
+                "amount_range": amount,
+                "transaction_date": _parse_mdy(txn_date),
+                "disclosure_date": filing["filed_date"],
+                "source_url": filing["report_url"],
+            }
+        )
     return rows
 
 
 # ─── EFD portal client ────────────────────────────────────────────────────────
+
 
 class SenateEFDClient:
     """Thin session wrapper over the EFD portal handshake + report queries."""
@@ -274,7 +279,11 @@ class SenateEFDClient:
 
             page = data.get("data", []) if isinstance(data, dict) else []
             filings.extend(_filing_from_row(row) for row in page)
-            total = data.get("recordsFiltered", len(filings)) if isinstance(data, dict) else len(filings)
+            total = (
+                data.get("recordsFiltered", len(filings))
+                if isinstance(data, dict)
+                else len(filings)
+            )
             start += PAGE_LENGTH
             if not page or start >= total:
                 break
@@ -291,6 +300,7 @@ class SenateEFDClient:
 
 
 # ─── Orchestration ────────────────────────────────────────────────────────────
+
 
 def ingest_senate_ptrs(
     *,
@@ -372,12 +382,18 @@ def _main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Ingest Senate e-filed PTRs from the EFD portal into the congress_trades store."
     )
-    parser.add_argument("--days", type=int, default=DEFAULT_LOOKBACK_DAYS,
-                        help=f"submitted-date lookback window (default {DEFAULT_LOOKBACK_DAYS})")
-    parser.add_argument("--as-of", default=None,
-                        help="window end date (YYYY-MM-DD); defaults to today")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="fetch and parse but do not write to the store")
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=DEFAULT_LOOKBACK_DAYS,
+        help=f"submitted-date lookback window (default {DEFAULT_LOOKBACK_DAYS})",
+    )
+    parser.add_argument(
+        "--as-of", default=None, help="window end date (YYYY-MM-DD); defaults to today"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="fetch and parse but do not write to the store"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="log INFO progress")
     args = parser.parse_args(argv)
 

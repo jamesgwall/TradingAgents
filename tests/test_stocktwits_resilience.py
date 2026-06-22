@@ -22,6 +22,7 @@ def _raise(exc):
 
         def read(self_inner):
             raise exc
+
     return _Resp()
 
 

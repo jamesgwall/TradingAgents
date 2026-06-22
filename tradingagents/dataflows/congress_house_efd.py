@@ -66,13 +66,13 @@ INDEX_PATH = "/public_disc/financial-pdfs/{year}FD.zip"
 # E-filed PTR PDFs are served by document id under this path.
 PTR_PDF_PATH = "/public_disc/ptr-pdfs/{year}/{docid}.pdf"
 
-PTR_FILING_TYPE = "P"     # FilingType code for a Periodic Transaction Report
+PTR_FILING_TYPE = "P"  # FilingType code for a Periodic Transaction Report
 # E-filed disclosure document ids start with this digit; paper-filing ids do
 # not (they are older/lower ranges). Classification by prefix per the Clerk's
 # observed numbering — the single knob to adjust if the convention shifts.
 _EFILED_DOCID_PREFIX = "2"
 
-REQUEST_TIMEOUT = 30      # seconds, consistent with the other vendors
+REQUEST_TIMEOUT = 30  # seconds, consistent with the other vendors
 DEFAULT_LOOKBACK_DAYS = 30
 # Below this many non-whitespace characters an extracted PDF is treated as a
 # scan (paper filing or image-only e-file) rather than machine-readable text.
@@ -102,6 +102,7 @@ class ScannedFilingError(HouseEFDError):
 
 
 # ─── Small parsing helpers ────────────────────────────────────────────────────
+
 
 def _clean(value) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
@@ -167,6 +168,7 @@ def _filing_from_index_row(fields: list[str], year: int) -> dict:
     Index columns: Prefix, Last, First, Suffix, FilingType, StateDst, Year,
     FilingDate, DocID.
     """
+
     def get(i: int) -> str:
         return _clean(fields[i]) if i < len(fields) else ""
 
@@ -186,6 +188,7 @@ def _filing_from_index_row(fields: list[str], year: int) -> dict:
 
 
 # ─── PDF text extraction + scan detection ─────────────────────────────────────
+
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
     """Extract all text from a PDF deterministically with PyMuPDF."""
@@ -208,6 +211,7 @@ def is_scanned(text: str) -> bool:
 
 
 # ─── Structurer (prompt assembly + injected LLM) ──────────────────────────────
+
 
 def build_structurer_prompt(text: str) -> str:
     """Assemble the local-LLM prompt that turns raw PTR text into JSON rows."""
@@ -264,13 +268,15 @@ class OllamaStructurer:
         self._timeout = timeout
 
     def __call__(self, prompt: str) -> list[dict]:
-        payload = json.dumps({
-            "model": self.model,
-            "prompt": prompt,
-            "format": "json",
-            "stream": False,
-            "options": {"temperature": 0},
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "prompt": prompt,
+                "format": "json",
+                "stream": False,
+                "options": {"temperature": 0},
+            }
+        ).encode()
         req = urllib.request.Request(
             f"{self._base}/api/generate",
             data=payload,
@@ -302,22 +308,24 @@ def normalize_transactions(raw_transactions: list[dict], *, filing: dict) -> lis
         ticker = _strip_ticker(raw.get("ticker"))
         if ticker.lower() in _NO_TICKER:
             continue
-        rows.append({
-            "source_filing_id": filing["filing_id"],
-            "row_index": len(rows) + 1,
-            "chamber": "House",
-            "member_name": filing["member_name"],
-            "party": "",
-            "owner_type": _clean(raw.get("owner")),
-            "committee": None,
-            "ticker": ticker,
-            "asset_name": _clean(raw.get("asset_name")),
-            "transaction_type": _clean(raw.get("type")),
-            "amount_range": _clean(raw.get("amount")),
-            "transaction_date": _parse_mdy(raw.get("date")),
-            "disclosure_date": filing["filed_date"],
-            "source_url": filing["report_url"],
-        })
+        rows.append(
+            {
+                "source_filing_id": filing["filing_id"],
+                "row_index": len(rows) + 1,
+                "chamber": "House",
+                "member_name": filing["member_name"],
+                "party": "",
+                "owner_type": _clean(raw.get("owner")),
+                "committee": None,
+                "ticker": ticker,
+                "asset_name": _clean(raw.get("asset_name")),
+                "transaction_type": _clean(raw.get("type")),
+                "amount_range": _clean(raw.get("amount")),
+                "transaction_date": _parse_mdy(raw.get("date")),
+                "disclosure_date": filing["filed_date"],
+                "source_url": filing["report_url"],
+            }
+        )
     return rows
 
 
@@ -339,6 +347,7 @@ def parse_house_ptr(pdf_bytes: bytes, *, filing: dict, structurer: Structurer) -
 
 
 # ─── House Clerk client ───────────────────────────────────────────────────────
+
 
 class HouseEFDClient:
     """Downloads the bulk index and fetches PTR PDFs from the House Clerk."""
@@ -397,7 +406,8 @@ class HouseEFDClient:
         if start_date is None or end_date is None:
             return filings
         return [
-            f for f in filings
+            f
+            for f in filings
             if f["filed_date"] is None or start_date <= f["filed_date"] <= end_date
         ]
 
@@ -411,6 +421,7 @@ class HouseEFDClient:
 
 
 # ─── Orchestration ────────────────────────────────────────────────────────────
+
 
 def ingest_house_ptrs(
     *,
@@ -503,16 +514,29 @@ def _main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Ingest House e-filed PTRs from the Clerk bulk index into the congress_trades store."
     )
-    parser.add_argument("--year", type=int, default=None,
-                        help="disclosure year to ingest (default: year of --as-of/today)")
-    parser.add_argument("--days", type=int, default=DEFAULT_LOOKBACK_DAYS,
-                        help=f"filing-date lookback window (default {DEFAULT_LOOKBACK_DAYS})")
-    parser.add_argument("--as-of", default=None,
-                        help="window end date (YYYY-MM-DD); defaults to today")
-    parser.add_argument("--model", default=None,
-                        help="Ollama structurer model (overrides CONGRESS_STRUCTURER_MODEL)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="fetch and parse but do not write to the store")
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="disclosure year to ingest (default: year of --as-of/today)",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=DEFAULT_LOOKBACK_DAYS,
+        help=f"filing-date lookback window (default {DEFAULT_LOOKBACK_DAYS})",
+    )
+    parser.add_argument(
+        "--as-of", default=None, help="window end date (YYYY-MM-DD); defaults to today"
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Ollama structurer model (overrides CONGRESS_STRUCTURER_MODEL)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="fetch and parse but do not write to the store"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="log INFO progress")
     args = parser.parse_args(argv)
 
@@ -523,8 +547,11 @@ def _main(argv=None) -> int:
     structurer = OllamaStructurer(model=args.model) if args.model else None
     try:
         summary = ingest_house_ptrs(
-            year=args.year, days=args.days, as_of=args.as_of,
-            structurer=structurer, committee_resolver=CommitteeResolver.load(),
+            year=args.year,
+            days=args.days,
+            as_of=args.as_of,
+            structurer=structurer,
+            committee_resolver=CommitteeResolver.load(),
             dry_run=args.dry_run,
         )
     except HouseEFDError as err:
