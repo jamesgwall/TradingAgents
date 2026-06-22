@@ -100,6 +100,7 @@ class TradingAgentsGraph:
 
         self.deep_thinking_llm = deep_client.get_llm()
         self.quick_thinking_llm = quick_client.get_llm()
+        self.reasoning_thinking_llm = self._build_reasoning_llm()
 
         self.memory_log = TradingMemoryLog(self.config)
 
@@ -117,6 +118,7 @@ class TradingAgentsGraph:
             self.tool_nodes,
             self.conditional_logic,
             analyst_concurrency_limit=self.config.get("analyst_concurrency_limit", 1),
+            reasoning_thinking_llm=self.reasoning_thinking_llm,
         )
 
         self.propagator = Propagator(
@@ -162,6 +164,41 @@ class TradingAgentsGraph:
             kwargs["temperature"] = float(temperature)
 
         return kwargs
+
+    def _build_reasoning_llm(self) -> Any:
+        """Build the optional debate-tier LLM, falling back to the quick tier.
+
+        The reasoning tier (bull/bear researchers + the three risk debators) is
+        opt-in. When none of its config keys are set this returns the
+        already-built quick LLM, so the graph is byte-for-byte unchanged
+        (regression-safe). When configured it builds a dedicated client with
+        per-key fallback to the quick tier — e.g. pointed at the local
+        llm-session-wrapper to run debates on a subscription model (B2).
+        """
+        configured = any(
+            self.config.get(key)
+            for key in (
+                "reasoning_llm_provider",
+                "reasoning_think_llm",
+                "reasoning_backend_url",
+            )
+        )
+        if not configured:
+            return self.quick_thinking_llm
+
+        kwargs = self._get_provider_kwargs("reasoning")
+        if self.callbacks:
+            kwargs["callbacks"] = self.callbacks
+
+        client = create_llm_client(
+            provider=self.config.get("reasoning_llm_provider")
+            or self.config.get("quick_llm_provider", self.config.get("llm_provider", "openai")),
+            model=self.config.get("reasoning_think_llm") or self.config["quick_think_llm"],
+            base_url=self.config.get("reasoning_backend_url")
+            or self.config.get("quick_backend_url"),
+            **kwargs,
+        )
+        return client.get_llm()
 
     def _create_tool_nodes(self) -> dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
