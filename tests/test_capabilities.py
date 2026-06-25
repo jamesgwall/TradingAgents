@@ -123,11 +123,11 @@ class TestWrapperTextOnly:
     straight to a single free-text call instead of a wasted structured attempt."""
 
     def test_wrapper_model_has_no_structured_method(self):
-        caps = get_capabilities("gemini-3.1-pro-high")
+        caps = get_capabilities("gemini-3.5-flash")
         assert caps.preferred_structured_method == "none"
 
     def test_wrapper_model_rejects_tools_and_json(self):
-        caps = get_capabilities("gemini-3.1-pro-high")
+        caps = get_capabilities("gemini-3.5-flash")
         assert caps.supports_tool_choice is False
         assert caps.supports_json_mode is False
         assert caps.supports_json_schema is False

@@ -42,11 +42,11 @@ def test_reasoning_tier_env_overrides(monkeypatch):
     dc = _reload_with_env(
         monkeypatch,
         TRADINGAGENTS_REASONING_LLM_PROVIDER="openai_compatible",
-        TRADINGAGENTS_REASONING_THINK_LLM="gemini-3.1-pro-high",
+        TRADINGAGENTS_REASONING_THINK_LLM="gemini-3.5-flash",
         TRADINGAGENTS_REASONING_LLM_BACKEND_URL="http://localhost:11500/v1",
     )
     assert dc.DEFAULT_CONFIG["reasoning_llm_provider"] == "openai_compatible"
-    assert dc.DEFAULT_CONFIG["reasoning_think_llm"] == "gemini-3.1-pro-high"
+    assert dc.DEFAULT_CONFIG["reasoning_think_llm"] == "gemini-3.5-flash"
     assert dc.DEFAULT_CONFIG["reasoning_backend_url"] == "http://localhost:11500/v1"
     # Reasoning env vars are per-tier: they must not touch quick/deep.
     assert dc.DEFAULT_CONFIG["quick_llm_provider"] == "openai"

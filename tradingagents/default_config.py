@@ -88,7 +88,7 @@ DEFAULT_CONFIG = _apply_env_overrides(
         # they are safe on a text-only subscription backend. When every key
         # below is unset they fall back to the quick tier, leaving graph
         # behavior unchanged; point them at the local llm-session-wrapper
-        # (openai_compatible, http://localhost:11500/v1, gemini-3.1-pro-high)
+        # (openai_compatible, http://localhost:11500/v1, gemini-3.5-flash)
         # to offload debate compute off the laptop (milestone B2).
         "reasoning_llm_provider": None,
         "reasoning_think_llm": None,
