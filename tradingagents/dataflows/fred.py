@@ -145,69 +145,72 @@ def get_macro_data(
 
     series_id = _resolve_series_id(indicator)
 
-    meta = _request("series", {"series_id": series_id}).get("seriess") or []
-    if not meta:
-        raise ValueError(
-            f"FRED series '{series_id}' not found. Pass a known alias "
-            f"(e.g. 'cpi', 'unemployment') or a valid FRED series ID."
-        )
-    info = meta[0]
-    title = info.get("title", series_id)
-    units = info.get("units_short") or info.get("units", "")
-    frequency = info.get("frequency", "")
-    seasonal = info.get("seasonal_adjustment_short", "")
-
-    observations = _request(
-        "series/observations",
-        {
-            "series_id": series_id,
-            "observation_start": start_date,
-            "observation_end": curr_date,
-            "sort_order": "asc",
-        },
-    ).get("observations", [])
-
-    # FRED encodes a missing observation as ".".
-    points = [
-        (o["date"], o["value"]) for o in observations if o.get("value") not in (".", None, "")
-    ]
-
-    header = (
-        f"## FRED: {title} ({series_id})\n"
-        f"- Units: {units}\n"
-        f"- Frequency: {frequency}"
-        f"{f' ({seasonal})' if seasonal else ''}\n"
-        f"- Window: {start_date} to {curr_date}\n"
-    )
-
-    if not points:
-        return header + (
-            f"\nNo observations for {series_id} in this window. The series may "
-            f"report less frequently than the window length; widen look_back_days."
-        )
-
-    first_date, first_val = points[0]
-    last_date, last_val = points[-1]
     try:
-        delta = float(last_val) - float(first_val)
-        base = float(first_val)
-        pct = f" ({delta / base * 100:+.2f}%)" if base != 0 else ""
-        summary = (
-            f"\n**Latest:** {last_val} ({last_date}) | "
-            f"**Change over window:** {delta:+.2f}{pct} "
-            f"from {first_val} ({first_date})\n"
+        meta = _request("series", {"series_id": series_id}).get("seriess") or []
+        if not meta:
+            return f"FRED series '{series_id}' not found. Pass a known alias (e.g. 'cpi', 'unemployment') or a valid FRED series ID."
+        
+        info = meta[0]
+        title = info.get("title", series_id)
+        units = info.get("units_short") or info.get("units", "")
+        frequency = info.get("frequency", "")
+        seasonal = info.get("seasonal_adjustment_short", "")
+
+        observations = _request(
+            "series/observations",
+            {
+                "series_id": series_id,
+                "observation_start": start_date,
+                "observation_end": curr_date,
+                "sort_order": "asc",
+            },
+        ).get("observations", [])
+
+        # FRED encodes a missing observation as ".".
+        points = [
+            (o["date"], o["value"]) for o in observations if o.get("value") not in (".", None, "")
+        ]
+
+        header = (
+            f"## FRED: {title} ({series_id})\n"
+            f"- Units: {units}\n"
+            f"- Frequency: {frequency}"
+            f"{f' ({seasonal})' if seasonal else ''}\n"
+            f"- Window: {start_date} to {curr_date}\n"
         )
-    except ValueError:
-        summary = f"\n**Latest:** {last_val} ({last_date})\n"
 
-    shown = points
-    note = ""
-    if len(points) > MAX_ROWS:
-        shown = points[-MAX_ROWS:]
-        note = f"\n_(showing the most recent {MAX_ROWS} of {len(points)} observations)_\n"
+        if not points:
+            return header + (
+                f"\nNo observations for {series_id} in this window. The series may "
+                f"report less frequently than the window length; widen look_back_days."
+            )
 
-    table = (
-        "\n| Date | Value |\n| --- | --- |\n" + "\n".join(f"| {d} | {v} |" for d, v in shown) + "\n"
-    )
+        first_date, first_val = points[0]
+        last_date, last_val = points[-1]
+        try:
+            delta = float(last_val) - float(first_val)
+            base = float(first_val)
+            pct = f" ({delta / base * 100:+.2f}%)" if base != 0 else ""
+            summary = (
+                f"\n**Latest:** {last_val} ({last_date}) | "
+                f"**Change over window:** {delta:+.2f}{pct} "
+                f"from {first_val} ({first_date})\n"
+            )
+        except ValueError:
+            summary = f"\n**Latest:** {last_val} ({last_date})\n"
 
-    return header + summary + note + table
+        shown = points
+        note = ""
+        if len(points) > MAX_ROWS:
+            shown = points[-MAX_ROWS:]
+            note = f"\n_(showing the most recent {MAX_ROWS} of {len(points)} observations)_\n"
+
+        table = (
+            "\n| Date | Value |\n| --- | --- |\n" + "\n".join(f"| {d} | {v} |" for d, v in shown) + "\n"
+        )
+
+        return header + summary + note + table
+    except FredNotConfiguredError:
+        raise
+    except Exception as e:
+        return f"Error retrieving FRED macro data for {indicator}: {str(e)}"
