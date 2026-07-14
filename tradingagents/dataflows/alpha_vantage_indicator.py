@@ -28,7 +28,7 @@ def get_indicator(
     from datetime import datetime
 
     from dateutil.relativedelta import relativedelta
-    
+
     if indicator == "macd_signal":
         indicator = "macds"
     elif indicator == "macd_hist":

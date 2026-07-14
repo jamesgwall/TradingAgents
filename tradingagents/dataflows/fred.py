@@ -149,7 +149,7 @@ def get_macro_data(
         meta = _request("series", {"series_id": series_id}).get("seriess") or []
         if not meta:
             return f"FRED series '{series_id}' not found. Pass a known alias (e.g. 'cpi', 'unemployment') or a valid FRED series ID."
-        
+
         info = meta[0]
         title = info.get("title", series_id)
         units = info.get("units_short") or info.get("units", "")

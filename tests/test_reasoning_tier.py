@@ -17,7 +17,6 @@ from tradingagents.graph import setup as graph_setup_mod
 from tradingagents.graph.conditional_logic import ConditionalLogic
 from tradingagents.graph.setup import GraphSetup
 
-
 # --- config: defaults + env overrides ---------------------------------------
 
 

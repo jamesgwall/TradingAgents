@@ -74,7 +74,7 @@ def get_stock_stats_indicators_window(
     curr_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
     look_back_days: Annotated[int, "how many days to look back"],
 ) -> str:
-    
+
     if indicator == "macd_signal":
         indicator = "macds"
     elif indicator == "macd_hist":

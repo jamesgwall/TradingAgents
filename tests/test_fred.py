@@ -104,13 +104,11 @@ class FredFormattingTests(unittest.TestCase):
             out = fred.get_macro_data("unemployment", "2025-09-30", 30)
         self.assertIn("No observations", out)
 
-    def test_unknown_series_raises(self):
+    def test_unknown_series_returns_error_string(self):
         no_series = {"seriess": []}
-        with (
-            mock.patch.object(fred, "_request", side_effect=_request_stub(meta=no_series)),
-            self.assertRaises(ValueError),
-        ):
-            fred.get_macro_data("totally_unknown_xyz", "2025-09-30", 30)
+        with mock.patch.object(fred, "_request", side_effect=_request_stub(meta=no_series)):
+            out = fred.get_macro_data("totally_unknown_xyz", "2025-09-30", 30)
+        self.assertIn("FRED series 'TOTALLY_UNKNOWN_XYZ' not found", out)
 
     def test_long_series_is_truncated_but_change_uses_full_range(self):
         # Build > MAX_ROWS observations deterministically.
