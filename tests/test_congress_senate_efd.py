@@ -203,9 +203,55 @@ class TestFetcher:
             def get(self, url, timeout=None):
                 raise requests.ConnectionError("refused")
 
-        client = SenateEFDClient(session=_Boom(home_html="", report_pages=[]))
+        client = SenateEFDClient(session=_Boom(home_html="", report_pages=[]), max_retries=1)
         with pytest.raises(SenateEFDError):
             client.fetch_ptr_filings(date(2026, 4, 1), date(2026, 4, 30))
+
+    def test_handshake_retries_transient_503_and_succeeds(self):
+        class _RetrySession(_FakeSession):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.attempts = 0
+
+            def get(self, url, timeout=None):
+                if url.endswith(efd.HOME_PATH):
+                    self.attempts += 1
+                    if self.attempts == 1:
+                        resp = requests.Response()
+                        resp.status_code = 503
+                        raise requests.HTTPError("503 Service Unavailable", response=resp)
+                return super().get(url, timeout=timeout)
+
+        session = _RetrySession(
+            home_html=_HOME_HTML,
+            report_pages=[{"data": [_ptr_row()], "recordsFiltered": 1}],
+        )
+        client = SenateEFDClient(session=session, max_retries=3)
+        filings = client.fetch_ptr_filings(date(2026, 4, 1), date(2026, 4, 30))
+        assert len(filings) == 1
+        assert session.attempts == 2
+
+    def test_report_data_reestablishes_session_on_failure(self):
+        class _SessionDropSession(_FakeSession):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.post_attempts = 0
+
+            def post(self, url, data=None, headers=None, timeout=None):
+                if url.endswith(REPORT_DATA_PATH):
+                    self.post_attempts += 1
+                    if self.post_attempts == 1:
+                        raise requests.RequestException("session expired 403")
+                return super().post(url, data=data, headers=headers, timeout=timeout)
+
+        session = _SessionDropSession(
+            home_html=_HOME_HTML,
+            report_pages=[{"data": [_ptr_row()], "recordsFiltered": 1}],
+        )
+        client = SenateEFDClient(session=session)
+        filings = client.fetch_ptr_filings(date(2026, 4, 1), date(2026, 4, 30))
+        assert len(filings) == 1
+        assert session.post_attempts == 2
 
 
 # ─── Ingest pipeline (fake client + store) ────────────────────────────────────

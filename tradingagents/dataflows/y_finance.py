@@ -12,7 +12,7 @@ from .stockstats_utils import (
     load_ohlcv,
     yf_retry,
 )
-from .symbol_utils import NoMarketDataError, normalize_symbol
+from .symbol_utils import NoMarketDataError, is_etf, normalize_symbol
 
 
 def get_YFin_data_online(
@@ -277,6 +277,38 @@ def get_fundamentals(
 ):
     """Get company fundamentals overview from yfinance."""
     canonical = normalize_symbol(ticker)
+    if is_etf(canonical):
+        try:
+            ticker_obj = yf.Ticker(canonical)
+            info = yf_retry(lambda: ticker_obj.info) or {}
+        except Exception:
+            info = {}
+
+        fields = [
+            ("Name", info.get("longName") or info.get("shortName")),
+            ("Category", info.get("category")),
+            ("Fund Family", info.get("fundFamily")),
+            ("Total Assets", info.get("totalAssets")),
+            ("NAV Price", info.get("navPrice")),
+            ("Yield", info.get("yield")),
+            ("Beta", info.get("beta") or info.get("beta3Year")),
+            ("52 Week High", info.get("fiftyTwoWeekHigh")),
+            ("52 Week Low", info.get("fiftyTwoWeekLow")),
+            ("50 Day Average", info.get("fiftyDayAverage")),
+            ("200 Day Average", info.get("twoHundredDayAverage")),
+            ("Expense Ratio", info.get("annualReportExpenseRatio")),
+        ]
+
+        lines = [f"{label}: {value}" for label, value in fields if value is not None]
+        if not lines:
+            lines.append("Instrument Type: Exchange Traded Fund (ETF)")
+
+        header = f"# ETF Fundamentals for {canonical}\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        header += "# Note: Corporate financial statements (balance sheet, cash flow, income statement) do not apply to ETFs.\n\n"
+
+        return header + "\n".join(lines)
+
     try:
         ticker_obj = yf.Ticker(canonical)
         info = yf_retry(lambda: ticker_obj.info)
@@ -345,6 +377,12 @@ def get_balance_sheet(
 ):
     """Get balance sheet data from yfinance."""
     canonical = normalize_symbol(ticker)
+    if is_etf(canonical):
+        return (
+            f"# Balance Sheet data for {canonical} ({freq})\n"
+            f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "Note: Financial statements (balance sheet) do not apply to Exchange Traded Funds (ETFs)."
+        )
     try:
         ticker_obj = yf.Ticker(canonical)
 
@@ -380,6 +418,12 @@ def get_cashflow(
 ):
     """Get cash flow data from yfinance."""
     canonical = normalize_symbol(ticker)
+    if is_etf(canonical):
+        return (
+            f"# Cash Flow data for {canonical} ({freq})\n"
+            f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "Note: Financial statements (cash flow) do not apply to Exchange Traded Funds (ETFs)."
+        )
     try:
         ticker_obj = yf.Ticker(canonical)
 
@@ -415,6 +459,12 @@ def get_income_statement(
 ):
     """Get income statement data from yfinance."""
     canonical = normalize_symbol(ticker)
+    if is_etf(canonical):
+        return (
+            f"# Income Statement data for {canonical} ({freq})\n"
+            f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "Note: Financial statements (income statement) do not apply to Exchange Traded Funds (ETFs)."
+        )
     try:
         ticker_obj = yf.Ticker(canonical)
 

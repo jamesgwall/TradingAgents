@@ -48,6 +48,18 @@ _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 # investing trend more measured. Caller can override.
 DEFAULT_SUBREDDITS = ("wallstreetbets", "stocks", "investing")
 
+# In-memory cache for Reddit search responses: (ticker, sub, limit) -> (epoch_timestamp, posts)
+_REDDIT_CACHE: dict[tuple[str, str, int], tuple[float, list[dict]]] = {}
+_CACHE_TTL_SECONDS: float = 300.0  # 5 minutes
+_RATE_LIMIT_COOLDOWN_UNTIL: float = 0.0
+
+
+def clear_cache() -> None:
+    """Clear in-memory Reddit cache and reset rate limit cooldown."""
+    global _RATE_LIMIT_COOLDOWN_UNTIL
+    _REDDIT_CACHE.clear()
+    _RATE_LIMIT_COOLDOWN_UNTIL = 0.0
+
 
 def _search_qs(ticker: str, limit: int) -> str:
     return urlencode(
@@ -98,6 +110,8 @@ def _fetch_subreddit_rss(
     limit: int,
     timeout: float,
     _retry: bool = True,
+    _use_cache: bool = True,
+    _is_retry: bool = False,
 ) -> list[dict]:
     """Default path: parse the public Atom search feed for a subreddit.
 
@@ -106,22 +120,54 @@ def _fetch_subreddit_rss(
     per-IP rate limit) we back off once — honouring ``Retry-After`` when
     present — before giving up, so a transient burst doesn't blank the feed.
     """
+    global _RATE_LIMIT_COOLDOWN_UNTIL
+    now = time.time()
+    cache_key = (ticker.upper(), sub.lower(), limit)
+
+    if _use_cache and not _is_retry and cache_key in _REDDIT_CACHE:
+        cached_time, cached_posts = _REDDIT_CACHE[cache_key]
+        if now - cached_time < _CACHE_TTL_SECONDS:
+            return cached_posts
+
+    # If global rate limit cooldown is active and this is not an active retry,
+    # return stale cache if available, else skip network call and return empty
+    if not _is_retry and now < _RATE_LIMIT_COOLDOWN_UNTIL:
+        if cache_key in _REDDIT_CACHE:
+            return _REDDIT_CACHE[cache_key][1]
+        logger.warning(
+            "Reddit rate limit cooldown active (%.1fs remaining) — skipping fetch for r/%s · %s",
+            _RATE_LIMIT_COOLDOWN_UNTIL - now,
+            sub,
+            ticker,
+        )
+        return []
+
     url = _RSS.format(sub=sub, qs=_search_qs(ticker, limit))
     req = Request(url, headers={"User-Agent": _UA})
     try:
         with urlopen(req, timeout=timeout) as resp:
             root = ET.fromstring(resp.read())
     except HTTPError as exc:
-        if exc.code == 429 and _retry:
+        if exc.code == 429:
             wait = _retry_after_seconds(exc) or 5.0
-            logger.warning(
-                "Reddit RSS 429 for r/%s · %s — backing off %.1fs then retrying once",
-                sub,
-                ticker,
-                wait,
-            )
-            time.sleep(wait)
-            return _fetch_subreddit_rss(ticker, sub, limit, timeout, _retry=False)
+            _RATE_LIMIT_COOLDOWN_UNTIL = time.time() + wait
+            if _retry:
+                logger.warning(
+                    "Reddit RSS 429 for r/%s · %s — backing off %.1fs then retrying once",
+                    sub,
+                    ticker,
+                    wait,
+                )
+                time.sleep(wait)
+                return _fetch_subreddit_rss(
+                    ticker,
+                    sub,
+                    limit,
+                    timeout,
+                    _retry=False,
+                    _use_cache=_use_cache,
+                    _is_retry=True,
+                )
         logger.warning("Reddit RSS fetch failed for r/%s · %s: %s", sub, ticker, exc)
         return []
     except (OSError, http.client.HTTPException, ET.ParseError) as exc:
@@ -147,6 +193,8 @@ def _fetch_subreddit_rss(
                 "source": "rss",
             }
         )
+    if _use_cache:
+        _REDDIT_CACHE[cache_key] = (time.time(), posts)
     return posts
 
 

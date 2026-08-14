@@ -233,6 +233,13 @@ class TestFormatterHandlesRssPosts:
         assert "via RSS" not in out
 
 
+@pytest.fixture(autouse=True)
+def _reset_reddit_cache():
+    reddit.clear_cache()
+    yield
+    reddit.clear_cache()
+
+
 @pytest.mark.unit
 class TestCryptoSearchTerm:
     """A crypto pair (BTC-USD) barely matches Reddit text; search the base (#1113)."""
@@ -253,3 +260,31 @@ class TestCryptoSearchTerm:
 
     def test_equity_passes_through(self):
         assert self._captured_ticker("NVDA") == "NVDA"
+
+
+@pytest.mark.unit
+class TestRedditCacheAndCooldown:
+    def test_repeated_call_uses_cache_without_network_request(self):
+        with patch.object(reddit, "urlopen", return_value=_atom_resp()) as op:
+            posts1 = reddit._fetch_subreddit_rss("NVDA", "stocks", 5, 5.0)
+            posts2 = reddit._fetch_subreddit_rss("NVDA", "stocks", 5, 5.0)
+        assert len(posts1) == 2
+        assert len(posts2) == 2
+        assert op.call_count == 1  # Cache hit on second call
+
+    def test_cooldown_returns_cached_or_empty(self):
+        err = HTTPError("url", 429, "Too Many Requests", {"Retry-After": "10"}, None)
+        with (
+            patch.object(reddit, "urlopen", side_effect=err),
+            patch.object(reddit.time, "sleep"),
+        ):
+            posts = reddit._fetch_subreddit_rss("MSFT", "investing", 5, 5.0)
+        assert posts == []
+        assert reddit.time.time() <= reddit._RATE_LIMIT_COOLDOWN_UNTIL
+
+        # While in cooldown, next fetch skips urlopen
+        with patch.object(reddit, "urlopen", side_effect=AssertionError("should not be called")) as mock_op:
+            res = reddit._fetch_subreddit_rss("GOOGL", "stocks", 5, 5.0)
+            assert res == []
+            mock_op.assert_not_called()
+

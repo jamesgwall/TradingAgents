@@ -1,6 +1,7 @@
 import json
 
 from .alpha_vantage_common import _make_api_request
+from .symbol_utils import is_etf
 
 
 def _filter_reports_by_date(result, curr_date: str):
@@ -38,6 +39,16 @@ def get_fundamentals(ticker: str, curr_date: str = None) -> str:
     Returns:
         str: Company overview data including financial ratios and key metrics
     """
+    if is_etf(ticker):
+        return json.dumps(
+            {
+                "Symbol": ticker.upper(),
+                "AssetType": "ETF",
+                "Name": f"{ticker.upper()} Exchange Traded Fund",
+                "Description": "Exchange Traded Fund (corporate financial statements do not apply).",
+            }
+        )
+
     params = {
         "symbol": ticker,
     }
@@ -47,17 +58,24 @@ def get_fundamentals(ticker: str, curr_date: str = None) -> str:
 
 def get_balance_sheet(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve balance sheet data for a given ticker symbol using Alpha Vantage."""
+    if is_etf(ticker):
+        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Balance sheet does not apply to ETFs."})
     result = _make_api_request("BALANCE_SHEET", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
 
 
 def get_cashflow(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve cash flow statement data for a given ticker symbol using Alpha Vantage."""
+    if is_etf(ticker):
+        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Cash flow does not apply to ETFs."})
     result = _make_api_request("CASH_FLOW", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
 
 
 def get_income_statement(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve income statement data for a given ticker symbol using Alpha Vantage."""
+    if is_etf(ticker):
+        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Income statement does not apply to ETFs."})
     result = _make_api_request("INCOME_STATEMENT", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
+

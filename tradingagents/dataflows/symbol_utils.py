@@ -185,3 +185,24 @@ def normalize_symbol(raw: str) -> str:
 def is_yahoo_safe(symbol: str) -> bool:
     """True when ``symbol`` only contains characters Yahoo symbols use."""
     return bool(symbol) and _YAHOO_SAFE.fullmatch(symbol) is not None
+
+
+# Common major ETF tickers and sector / asset class ETFs
+_KNOWN_ETFS = frozenset(
+    {
+        "SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "IVV", "VXX", "UVXY", "SQQQ", "TQQQ",
+        "XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLY", "XLU", "XLB", "XLRE", "XLC",
+        "GLD", "SLV", "GDX", "GDXJ", "USO", "UNG", "TLT", "IEF", "SHY", "HYG", "LQD",
+        "EEM", "EFA", "VWO", "VEA", "ARKK", "SOXX", "SMH", "XBI", "IBB", "KRE", "XRT",
+        "BIL", "SHV", "BND", "AGG", "VT", "SCHD", "JEPI", "JEPQ", "VUG", "VTV",
+    }
+)
+
+
+def is_etf(symbol: str) -> bool:
+    """Return True if the symbol is a known ETF ticker."""
+    if not isinstance(symbol, str):
+        return False
+    canonical = normalize_symbol(symbol).strip().upper()
+    return canonical in _KNOWN_ETFS
+

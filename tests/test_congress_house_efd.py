@@ -155,6 +155,32 @@ class TestParseAndNormalize:
         with pytest.raises(ScannedFilingError):
             parse_house_ptr(_SCANNED_PDF.read_bytes(), filing=_filing(), structurer=stub)
 
+    def test_long_pdf_text_is_truncated(self):
+        captured = {}
+
+        def stub(prompt):
+            captured["prompt"] = prompt
+            return self._structured()
+
+        # Generate huge text by mocking extract_pdf_text
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(house, "extract_pdf_text", lambda pdf: "A" * 30000)
+            parse_house_ptr(b"fake", filing=_filing(), structurer=stub)
+
+        assert len(captured["prompt"]) < 30000
+        assert "[TRUNCATED: PDF text exceeded maximum structure length]" in captured["prompt"]
+
+    def test_ollama_structurer_timeout_config(self, monkeypatch):
+        s1 = house.OllamaStructurer()
+        assert s1._timeout == 45
+
+        s2 = house.OllamaStructurer(timeout=60)
+        assert s2._timeout == 60
+
+        monkeypatch.setenv("CONGRESS_STRUCTURER_TIMEOUT", "30")
+        s3 = house.OllamaStructurer()
+        assert s3._timeout == 30
+
 
 # ─── Bulk index parsing + e-filed/paper classification ────────────────────────
 

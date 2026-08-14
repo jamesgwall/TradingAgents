@@ -84,6 +84,8 @@ _UA = "tradingagents/0.2 (+https://github.com/TauricResearch/TradingAgents)"
 # e-filed PTR at 18/18 transactions correct in prototyping, beating larger
 # variants. Override without code edits via CONGRESS_STRUCTURER_MODEL.
 DEFAULT_STRUCTURER_MODEL = "gemma3n:e4b-it-qat"
+DEFAULT_STRUCTURER_TIMEOUT = 45  # seconds
+MAX_PDF_TEXT_LENGTH = 20000  # max characters before prompt truncation
 
 # Ticker-column sentinels meaning "no exchange symbol" (non-equity assets).
 _NO_TICKER = {"", "--", "—", "n/a", "na", "none", "n/a."}
@@ -249,9 +251,9 @@ def _coerce_structurer_output(raw) -> list[dict]:
 class OllamaStructurer:
     """Default structurer: a local Ollama model emitting JSON transactions.
 
-    Callable as ``structurer(prompt) -> list[dict]``. The model is configurable
-    (constructor arg > ``CONGRESS_STRUCTURER_MODEL`` env > built-in default) so
-    the structurer can be swapped without code edits.
+    Callable as ``structurer(prompt) -> list[dict]``. The model and timeout are
+    configurable (constructor args > env vars > built-in defaults) so the
+    structurer can be tuned without code edits.
     """
 
     def __init__(
@@ -259,13 +261,18 @@ class OllamaStructurer:
         *,
         model: str | None = None,
         ollama_url: str | None = None,
-        timeout: int = 120,
+        timeout: int | None = None,
     ):
         self.model = model or os.environ.get("CONGRESS_STRUCTURER_MODEL", DEFAULT_STRUCTURER_MODEL)
         self._base = (
             ollama_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
         ).rstrip("/")
-        self._timeout = timeout
+        if timeout is not None:
+            self._timeout = timeout
+        else:
+            self._timeout = int(
+                os.environ.get("CONGRESS_STRUCTURER_TIMEOUT", str(DEFAULT_STRUCTURER_TIMEOUT))
+            )
 
     def __call__(self, prompt: str) -> list[dict]:
         payload = json.dumps(
@@ -341,6 +348,13 @@ def parse_house_ptr(pdf_bytes: bytes, *, filing: dict, structurer: Structurer) -
             f"PTR PDF {filing.get('report_url') or filing.get('filing_id')} "
             "is a scan (near-zero extractable text)"
         )
+    if len(text) > MAX_PDF_TEXT_LENGTH:
+        log.warning(
+            "House PTR PDF text length %d exceeds %d chars; capping before structure prompt",
+            len(text),
+            MAX_PDF_TEXT_LENGTH,
+        )
+        text = text[:MAX_PDF_TEXT_LENGTH] + "\n\n[TRUNCATED: PDF text exceeded maximum structure length]"
     prompt = build_structurer_prompt(text)
     raw = structurer(prompt)
     return normalize_transactions(raw, filing=filing)
@@ -535,6 +549,12 @@ def _main(argv=None) -> int:
         help="Ollama structurer model (overrides CONGRESS_STRUCTURER_MODEL)",
     )
     parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Ollama structurer timeout in seconds (default: 45 or CONGRESS_STRUCTURER_TIMEOUT)",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="fetch and parse but do not write to the store"
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="log INFO progress")
@@ -544,7 +564,11 @@ def _main(argv=None) -> int:
         level=logging.INFO if args.verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    structurer = OllamaStructurer(model=args.model) if args.model else None
+    structurer = (
+        OllamaStructurer(model=args.model, timeout=args.timeout)
+        if (args.model or args.timeout is not None)
+        else None
+    )
     try:
         summary = ingest_house_ptrs(
             year=args.year,

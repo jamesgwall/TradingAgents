@@ -32,10 +32,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import date, datetime, timedelta
 
 import requests
 from parsel import Selector
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from tradingagents.dataflows.congress_committees import (
     CommitteeResolver,
@@ -203,40 +206,76 @@ def parse_ptr_html(html: str, *, filing: dict) -> list[dict]:
 class SenateEFDClient:
     """Thin session wrapper over the EFD portal handshake + report queries."""
 
-    def __init__(self, *, timeout: int = REQUEST_TIMEOUT, session: requests.Session | None = None):
+    def __init__(
+        self,
+        *,
+        timeout: int = REQUEST_TIMEOUT,
+        session: requests.Session | None = None,
+        max_retries: int = 3,
+    ):
         self._timeout = timeout
-        self._session = session or requests.Session()
+        self._max_retries = max_retries
+        self._session = session or self._create_session()
         self._session.headers.setdefault("User-Agent", _UA)
         self._csrf = ""
         self._established = False
+
+    @staticmethod
+    def _create_session() -> requests.Session:
+        session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1.0,
+            status_forcelist=[429, 500, 502, 503, 504],
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        return session
 
     @staticmethod
     def _csrf_from_html(html: str) -> str:
         sel = Selector(text=html)
         return sel.css('input[name="csrfmiddlewaretoken"]::attr(value)').get() or ""
 
-    def _establish(self) -> None:
-        """Complete the CSRF + prohibition-agreement handshake (once)."""
-        if self._established:
+    def _establish(self, force: bool = False) -> None:
+        """Complete the CSRF + prohibition-agreement handshake (once, or on force)."""
+        if self._established and not force:
             return
-        try:
-            home = self._session.get(BASE_URL + HOME_PATH, timeout=self._timeout)
-            home.raise_for_status()
-            token = self._csrf_from_html(home.text) or self._session.cookies.get("csrftoken", "")
-            if not token:
-                raise SenateEFDError("EFD home page did not yield a CSRF token")
-            agree = self._session.post(
-                BASE_URL + HOME_PATH,
-                data={"prohibition_agreement": "1", "csrfmiddlewaretoken": token},
-                headers={"Referer": BASE_URL + HOME_PATH},
-                timeout=self._timeout,
-            )
-            agree.raise_for_status()
-        except requests.RequestException as err:
-            raise SenateEFDError(f"EFD handshake failed: {err}") from err
-        # The agreement POST refreshes the csrftoken cookie; prefer it.
-        self._csrf = self._session.cookies.get("csrftoken", "") or token
-        self._established = True
+        self._established = False
+        last_err = None
+        for attempt in range(self._max_retries):
+            try:
+                home = self._session.get(BASE_URL + HOME_PATH, timeout=self._timeout)
+                home.raise_for_status()
+                token = self._csrf_from_html(home.text) or self._session.cookies.get("csrftoken", "")
+                if not token:
+                    raise SenateEFDError("EFD home page did not yield a CSRF token")
+                agree = self._session.post(
+                    BASE_URL + HOME_PATH,
+                    data={"prohibition_agreement": "1", "csrfmiddlewaretoken": token},
+                    headers={"Referer": BASE_URL + HOME_PATH},
+                    timeout=self._timeout,
+                )
+                agree.raise_for_status()
+                # The agreement POST refreshes the csrftoken cookie; prefer it.
+                self._csrf = self._session.cookies.get("csrftoken", "") or token
+                self._established = True
+                return
+            except (requests.RequestException, SenateEFDError) as err:
+                last_err = err
+                if attempt < self._max_retries - 1:
+                    wait_s = (2 ** attempt) * 1.0
+                    log.warning(
+                        "Senate EFD handshake failed (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1,
+                        self._max_retries,
+                        err,
+                        wait_s,
+                    )
+                    time.sleep(wait_s)
+        raise SenateEFDError(f"EFD handshake failed after {self._max_retries} attempts: {last_err}") from last_err
 
     def fetch_ptr_filings(self, start_date: date, end_date: date) -> list[dict]:
         """Return PTR filing descriptors submitted in [start_date, end_date]."""
@@ -272,10 +311,30 @@ class SenateEFDClient:
                 )
                 resp.raise_for_status()
                 data = resp.json()
-            except requests.RequestException as err:
-                raise SenateEFDError(f"EFD report-data query failed: {err}") from err
-            except json.JSONDecodeError as err:
-                raise SenateEFDError(f"EFD report-data returned non-JSON: {err}") from err
+            except (requests.RequestException, json.JSONDecodeError) as err:
+                log.warning(
+                    "EFD report-data query error (%s) — attempting session re-establishment",
+                    err,
+                )
+                try:
+                    self._establish(force=True)
+                    payload["csrfmiddlewaretoken"] = self._csrf
+                    resp = self._session.post(
+                        BASE_URL + REPORT_DATA_PATH,
+                        data=payload,
+                        headers={
+                            "Referer": BASE_URL + SEARCH_PATH,
+                            "X-Requested-With": "XMLHttpRequest",
+                            "X-CSRFToken": self._csrf,
+                        },
+                        timeout=self._timeout,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception as retry_err:
+                    if isinstance(retry_err, json.JSONDecodeError):
+                        raise SenateEFDError(f"EFD report-data returned non-JSON: {retry_err}") from retry_err
+                    raise SenateEFDError(f"EFD report-data query failed: {retry_err}") from retry_err
 
             page = data.get("data", []) if isinstance(data, dict) else []
             filings.extend(_filing_from_row(row) for row in page)
@@ -294,9 +353,20 @@ class SenateEFDClient:
         try:
             resp = self._session.get(report_url, timeout=self._timeout)
             resp.raise_for_status()
+            return resp.text
         except requests.RequestException as err:
-            raise SenateEFDError(f"EFD report fetch failed for {report_url}: {err}") from err
-        return resp.text
+            log.warning(
+                "EFD report fetch error for %s (%s) — attempting session re-establishment",
+                report_url,
+                err,
+            )
+            try:
+                self._establish(force=True)
+                resp = self._session.get(report_url, timeout=self._timeout)
+                resp.raise_for_status()
+                return resp.text
+            except requests.RequestException as retry_err:
+                raise SenateEFDError(f"EFD report fetch failed for {report_url}: {retry_err}") from retry_err
 
 
 # ─── Orchestration ────────────────────────────────────────────────────────────

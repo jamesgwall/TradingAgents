@@ -7,9 +7,11 @@ import pytest
 from tradingagents.dataflows.symbol_utils import (
     NoMarketDataError,
     crypto_base,
+    is_etf,
     is_yahoo_safe,
     normalize_symbol,
 )
+
 
 
 @pytest.mark.unit
@@ -98,5 +100,17 @@ class TestCryptoBase(unittest.TestCase):
         self.assertEqual(crypto_base("BTCUSD"), "BTC")
 
 
+@pytest.mark.unit
+class TestIsEtf(unittest.TestCase):
+    def test_recognizes_known_etfs(self):
+        for sym in ("SPY", "spy", "QQQ", "qqq", "IWM", "DIA", "VOO", "VTI", "GLD", "TLT", "XLK"):
+            self.assertTrue(is_etf(sym), f"Expected {sym} to be recognized as ETF")
+
+    def test_rejects_single_stocks_and_crypto(self):
+        for sym in ("AAPL", "MSFT", "NVDA", "BTC-USD", "GC=F", "", None):
+            self.assertFalse(is_etf(sym), f"Expected {sym} to NOT be recognized as ETF")
+
+
 if __name__ == "__main__":
     unittest.main()
+
