@@ -13,7 +13,6 @@ from tradingagents.dataflows.symbol_utils import (
 )
 
 
-
 @pytest.mark.unit
 class TestNormalizeSymbol(unittest.TestCase):
     def test_plain_equities_unchanged(self):
