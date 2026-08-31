@@ -4,6 +4,7 @@ prompt_toolkit raises NoConsoleScreenBufferError before the first prompt in
 non-interactive Windows terminals; the CLI should not surface that traceback.
 The Windows-only exception import must also stay inert on other platforms.
 """
+
 from __future__ import annotations
 
 import sys

@@ -148,6 +148,7 @@ _PASSTHROUGH_KWARGS = (
     "max_retries",
     "reasoning_effort",
     "temperature",
+    "max_tokens",
     "api_key",
     "callbacks",
     "http_client",

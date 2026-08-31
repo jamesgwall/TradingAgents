@@ -25,7 +25,7 @@ _PASSTHROUGH_KWARGS = (
 # ``fable-5``); the per-family minimum below is forward-compatible.
 _EFFORT_EXACT = {
     "claude-mythos-preview",  # non-standard preview name; effort-capable
-    "claude-mythos-5",        # Fable 5 twin (Project Glasswing); effort-capable
+    "claude-mythos-5",  # Fable 5 twin (Project Glasswing); effort-capable
 }
 _EFFORT_MODEL = re.compile(r"^claude-(opus|sonnet|fable)-(\d+)(?:-(\d+))?$")
 _EFFORT_MIN_VERSION = {"opus": (4, 5), "sonnet": (4, 6), "fable": (5, 0)}

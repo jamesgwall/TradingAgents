@@ -6,11 +6,13 @@ news injected future articles), #993 (empty-after-filter returned a blank body),
 and #1126 (inclusive upper bound leaked the midnight-after article; host-local
 timestamp parsing made filtering machine-dependent).
 """
+
 from datetime import datetime, timezone
 
 import pytest
 
 import tradingagents.dataflows.yfinance_news as ynews
+from tradingagents.dataflows.date_window import in_window
 
 
 def _epoch(date_str):
@@ -36,16 +38,16 @@ def test_window_excludes_future_and_undated_in_backtest():
     end = datetime(2025, 5, 9)  # historical window (well in the past)
     inside = datetime(2025, 5, 5)
     future = datetime(2025, 6, 1)
-    assert ynews._in_news_window(inside, start, end) is True
-    assert ynews._in_news_window(future, start, end) is False     # look-ahead blocked
-    assert ynews._in_news_window(None, start, end) is False        # undated -> excluded in backtest
+    assert in_window(inside, start, end) is True
+    assert in_window(future, start, end) is False  # look-ahead blocked
+    assert in_window(None, start, end) is False  # undated -> excluded in backtest
 
 
 @pytest.mark.unit
 def test_window_keeps_undated_in_live_window():
     # Live window (reaches today): undated articles can't be "future", so keep them.
     now = datetime.now(timezone.utc)
-    assert ynews._in_news_window(None, now, now) is True
+    assert in_window(None, now, now) is True
 
 
 @pytest.mark.unit
@@ -56,8 +58,8 @@ def test_upper_bound_is_exclusive():
     end = datetime(2025, 5, 9)
     midnight_after = datetime(2025, 5, 10, 0, 0, 0, tzinfo=timezone.utc)
     last_moment = datetime(2025, 5, 9, 23, 59, 59, tzinfo=timezone.utc)
-    assert ynews._in_news_window(midnight_after, start, end) is False
-    assert ynews._in_news_window(last_moment, start, end) is True
+    assert in_window(midnight_after, start, end) is False
+    assert in_window(last_moment, start, end) is True
 
 
 @pytest.mark.unit
@@ -67,16 +69,24 @@ def test_offset_aware_timestamp_is_converted_not_truncated():
     start = datetime(2025, 5, 1)
     end = datetime(2025, 5, 9)
     aware = datetime.fromisoformat("2025-05-10T01:00:00+05:00")
-    assert ynews._in_news_window(aware, start, end) is True
+    assert in_window(aware, start, end) is True
 
 
 @pytest.mark.unit
 def test_global_news_future_flat_article_excluded(monkeypatch):
     # #1007: a flat, future-dated global article must not appear in a historical run.
-    future_article = {"title": "FUTURE EVENT", "publisher": "P", "link": "l",
-                      "providerPublishTime": _epoch("2025-06-01")}
-    past_article = {"title": "PAST EVENT", "publisher": "P", "link": "l",
-                    "providerPublishTime": _epoch("2025-05-05")}
+    future_article = {
+        "title": "FUTURE EVENT",
+        "publisher": "P",
+        "link": "l",
+        "providerPublishTime": _epoch("2025-06-01"),
+    }
+    past_article = {
+        "title": "PAST EVENT",
+        "publisher": "P",
+        "link": "l",
+        "providerPublishTime": _epoch("2025-05-05"),
+    }
 
     class FakeSearch:
         def __init__(self, *a, **k):
@@ -91,8 +101,12 @@ def test_global_news_future_flat_article_excluded(monkeypatch):
 @pytest.mark.unit
 def test_global_news_empty_after_filter_is_informative(monkeypatch):
     # #993: everything filtered out -> a clear message, not a blank-bodied report.
-    only_future = {"title": "FUTURE", "publisher": "P", "link": "l",
-                   "providerPublishTime": _epoch("2025-06-01")}
+    only_future = {
+        "title": "FUTURE",
+        "publisher": "P",
+        "link": "l",
+        "providerPublishTime": _epoch("2025-06-01"),
+    }
 
     class FakeSearch:
         def __init__(self, *a, **k):

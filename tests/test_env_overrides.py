@@ -23,8 +23,8 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     # Provider/URL config is per-tier; both tiers default to openai with no URL.
     assert dc.DEFAULT_CONFIG["quick_llm_provider"] == "openai"
     assert dc.DEFAULT_CONFIG["deep_llm_provider"] == "openai"
-    assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gpt-5.5"
-    assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gpt-5.4-mini"
+    assert dc.DEFAULT_CONFIG["deep_think_llm"] == "gpt-5.6"
+    assert dc.DEFAULT_CONFIG["quick_think_llm"] == "gpt-5.6-luna"
     assert dc.DEFAULT_CONFIG["quick_backend_url"] is None
     assert dc.DEFAULT_CONFIG["deep_backend_url"] is None
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1

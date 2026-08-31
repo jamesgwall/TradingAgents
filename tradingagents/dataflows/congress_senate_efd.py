@@ -249,7 +249,9 @@ class SenateEFDClient:
             try:
                 home = self._session.get(BASE_URL + HOME_PATH, timeout=self._timeout)
                 home.raise_for_status()
-                token = self._csrf_from_html(home.text) or self._session.cookies.get("csrftoken", "")
+                token = self._csrf_from_html(home.text) or self._session.cookies.get(
+                    "csrftoken", ""
+                )
                 if not token:
                     raise SenateEFDError("EFD home page did not yield a CSRF token")
                 agree = self._session.post(
@@ -266,7 +268,7 @@ class SenateEFDClient:
             except (requests.RequestException, SenateEFDError) as err:
                 last_err = err
                 if attempt < self._max_retries - 1:
-                    wait_s = (2 ** attempt) * 1.0
+                    wait_s = (2**attempt) * 1.0
                     log.warning(
                         "Senate EFD handshake failed (attempt %d/%d): %s — retrying in %.1fs",
                         attempt + 1,
@@ -275,7 +277,9 @@ class SenateEFDClient:
                         wait_s,
                     )
                     time.sleep(wait_s)
-        raise SenateEFDError(f"EFD handshake failed after {self._max_retries} attempts: {last_err}") from last_err
+        raise SenateEFDError(
+            f"EFD handshake failed after {self._max_retries} attempts: {last_err}"
+        ) from last_err
 
     def fetch_ptr_filings(self, start_date: date, end_date: date) -> list[dict]:
         """Return PTR filing descriptors submitted in [start_date, end_date]."""
@@ -333,8 +337,12 @@ class SenateEFDClient:
                     data = resp.json()
                 except Exception as retry_err:
                     if isinstance(retry_err, json.JSONDecodeError):
-                        raise SenateEFDError(f"EFD report-data returned non-JSON: {retry_err}") from retry_err
-                    raise SenateEFDError(f"EFD report-data query failed: {retry_err}") from retry_err
+                        raise SenateEFDError(
+                            f"EFD report-data returned non-JSON: {retry_err}"
+                        ) from retry_err
+                    raise SenateEFDError(
+                        f"EFD report-data query failed: {retry_err}"
+                    ) from retry_err
 
             page = data.get("data", []) if isinstance(data, dict) else []
             filings.extend(_filing_from_row(row) for row in page)
@@ -366,7 +374,9 @@ class SenateEFDClient:
                 resp.raise_for_status()
                 return resp.text
             except requests.RequestException as retry_err:
-                raise SenateEFDError(f"EFD report fetch failed for {report_url}: {retry_err}") from retry_err
+                raise SenateEFDError(
+                    f"EFD report fetch failed for {report_url}: {retry_err}"
+                ) from retry_err
 
 
 # ─── Orchestration ────────────────────────────────────────────────────────────

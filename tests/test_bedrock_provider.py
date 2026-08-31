@@ -41,6 +41,7 @@ def _capture_kwargs(monkeypatch):
     """Stub _bedrock_class so the constructor kwargs are testable without the
     optional langchain-aws extra installed."""
     import tradingagents.llm_clients.bedrock_client as bc
+
     captured = {}
 
     class _FakeChat:

@@ -55,12 +55,12 @@ class TestStockTwitsCryptoSymbols:
             ("BTC-USD", "BTC.X"),
             ("eth-usd", "ETH.X"),
             ("SOL-USD", "SOL.X"),
-            ("BTCUSD", "BTC.X"),      # undashed broker form
-            ("BTC-USDT", "BTC.X"),    # stablecoin quote
+            ("BTCUSD", "BTC.X"),  # undashed broker form
+            ("BTC-USDT", "BTC.X"),  # stablecoin quote
             ("AMD", "AMD"),
-            ("BRK-B", "BRK-B"),       # dashed class share: untouched
-            ("GOLD", "GOLD"),         # real equity (aliases elsewhere): untouched here
-            ("XYZ-USD", "XYZ-USD"),   # unknown base: not treated as crypto
+            ("BRK-B", "BRK-B"),  # dashed class share: untouched
+            ("GOLD", "GOLD"),  # real equity (aliases elsewhere): untouched here
+            ("XYZ-USD", "XYZ-USD"),  # unknown base: not treated as crypto
         ],
     )
     def test_symbol_mapping(self, ticker, expected):

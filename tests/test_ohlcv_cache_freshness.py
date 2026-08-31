@@ -6,6 +6,7 @@ analysis. Two cases matter for a current-day request: the bar may be missing, or
 present but still in progress (Yahoo publishes a partial daily candle intraday).
 Refresh is bounded by a TTL so repeated runs cannot hammer the vendor.
 """
+
 from __future__ import annotations
 
 import os

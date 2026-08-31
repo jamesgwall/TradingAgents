@@ -354,7 +354,10 @@ def parse_house_ptr(pdf_bytes: bytes, *, filing: dict, structurer: Structurer) -
             len(text),
             MAX_PDF_TEXT_LENGTH,
         )
-        text = text[:MAX_PDF_TEXT_LENGTH] + "\n\n[TRUNCATED: PDF text exceeded maximum structure length]"
+        text = (
+            text[:MAX_PDF_TEXT_LENGTH]
+            + "\n\n[TRUNCATED: PDF text exceeded maximum structure length]"
+        )
     prompt = build_structurer_prompt(text)
     raw = structurer(prompt)
     return normalize_transactions(raw, filing=filing)

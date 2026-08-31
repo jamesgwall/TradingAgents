@@ -283,8 +283,9 @@ class TestRedditCacheAndCooldown:
         assert reddit.time.time() <= reddit._RATE_LIMIT_COOLDOWN_UNTIL
 
         # While in cooldown, next fetch skips urlopen
-        with patch.object(reddit, "urlopen", side_effect=AssertionError("should not be called")) as mock_op:
+        with patch.object(
+            reddit, "urlopen", side_effect=AssertionError("should not be called")
+        ) as mock_op:
             res = reddit._fetch_subreddit_rss("GOOGL", "stocks", 5, 5.0)
             assert res == []
             mock_op.assert_not_called()
-

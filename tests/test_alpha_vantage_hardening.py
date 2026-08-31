@@ -5,6 +5,7 @@ responses mislabeled as rate limits and silently treated as transient), and
 #1115 (fundamentals look-ahead filter never ran because the payload is a JSON
 string, not a dict).
 """
+
 import json
 
 import pytest
@@ -66,17 +67,19 @@ def test_invalid_key_not_mislabeled_as_rate_limit(monkeypatch):
         av._make_api_request("TIME_SERIES_DAILY", {"symbol": "AAPL"})
 
 
-_FUNDAMENTALS_JSON = json.dumps({
-    "symbol": "AAPL",
-    "annualReports": [
-        {"fiscalDateEnding": "2025-12-31", "totalAssets": "1"},   # future -> must drop
-        {"fiscalDateEnding": "2023-12-31", "totalAssets": "2"},   # past   -> must keep
-    ],
-    "quarterlyReports": [
-        {"fiscalDateEnding": "2024-06-30", "totalAssets": "3"},   # future -> must drop
-        {"fiscalDateEnding": "2023-09-30", "totalAssets": "4"},   # past   -> must keep
-    ],
-})
+_FUNDAMENTALS_JSON = json.dumps(
+    {
+        "symbol": "AAPL",
+        "annualReports": [
+            {"fiscalDateEnding": "2025-12-31", "totalAssets": "1"},  # future -> must drop
+            {"fiscalDateEnding": "2023-12-31", "totalAssets": "2"},  # past   -> must keep
+        ],
+        "quarterlyReports": [
+            {"fiscalDateEnding": "2024-06-30", "totalAssets": "3"},  # future -> must drop
+            {"fiscalDateEnding": "2023-09-30", "totalAssets": "4"},  # past   -> must keep
+        ],
+    }
+)
 
 
 @pytest.mark.unit

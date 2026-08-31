@@ -98,7 +98,7 @@ def _capture_setup(monkeypatch):
     for name, label in factories.items():
         monkeypatch.setattr(graph_setup_mod, name, _factory(label))
     # msg-delete node takes no llm; keep it a valid no-op node.
-    monkeypatch.setattr(graph_setup_mod, "create_msg_delete", lambda: (lambda state: state))
+    monkeypatch.setattr(graph_setup_mod, "create_msg_delete", lambda: lambda state: state)
     return seen
 
 

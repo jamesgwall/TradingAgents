@@ -21,10 +21,7 @@ def _filter_reports_by_date(result, curr_date: str):
         return result
     for key in ("annualReports", "quarterlyReports"):
         if isinstance(payload.get(key), list):
-            payload[key] = [
-                r for r in payload[key]
-                if r.get("fiscalDateEnding", "") <= curr_date
-            ]
+            payload[key] = [r for r in payload[key] if r.get("fiscalDateEnding", "") <= curr_date]
     return json.dumps(payload)
 
 
@@ -59,7 +56,14 @@ def get_fundamentals(ticker: str, curr_date: str = None) -> str:
 def get_balance_sheet(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve balance sheet data for a given ticker symbol using Alpha Vantage."""
     if is_etf(ticker):
-        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Balance sheet does not apply to ETFs."})
+        return json.dumps(
+            {
+                "symbol": ticker.upper(),
+                "annualReports": [],
+                "quarterlyReports": [],
+                "note": "Balance sheet does not apply to ETFs.",
+            }
+        )
     result = _make_api_request("BALANCE_SHEET", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
 
@@ -67,7 +71,14 @@ def get_balance_sheet(ticker: str, freq: str = "quarterly", curr_date: str = Non
 def get_cashflow(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve cash flow statement data for a given ticker symbol using Alpha Vantage."""
     if is_etf(ticker):
-        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Cash flow does not apply to ETFs."})
+        return json.dumps(
+            {
+                "symbol": ticker.upper(),
+                "annualReports": [],
+                "quarterlyReports": [],
+                "note": "Cash flow does not apply to ETFs.",
+            }
+        )
     result = _make_api_request("CASH_FLOW", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
 
@@ -75,7 +86,13 @@ def get_cashflow(ticker: str, freq: str = "quarterly", curr_date: str = None):
 def get_income_statement(ticker: str, freq: str = "quarterly", curr_date: str = None):
     """Retrieve income statement data for a given ticker symbol using Alpha Vantage."""
     if is_etf(ticker):
-        return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": "Income statement does not apply to ETFs."})
+        return json.dumps(
+            {
+                "symbol": ticker.upper(),
+                "annualReports": [],
+                "quarterlyReports": [],
+                "note": "Income statement does not apply to ETFs.",
+            }
+        )
     result = _make_api_request("INCOME_STATEMENT", {"symbol": ticker})
     return _filter_reports_by_date(result, curr_date)
-

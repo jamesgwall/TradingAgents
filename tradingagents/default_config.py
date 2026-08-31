@@ -31,6 +31,13 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_BENCHMARK_TICKER": "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE": "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES": "llm_max_retries",
+    "TRADINGAGENTS_MAX_TOKENS": "max_tokens",
+    # Provider-specific reasoning/thinking knobs (None = each provider's own
+    # default). Settable here for non-interactive runs; the CLI also offers an
+    # interactive choice, which is skipped when the matching var is set.
+    "TRADINGAGENTS_GOOGLE_THINKING_LEVEL": "google_thinking_level",
+    "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
+    "TRADINGAGENTS_ANTHROPIC_EFFORT": "anthropic_effort",
 }
 
 
@@ -77,11 +84,11 @@ DEFAULT_CONFIG = _apply_env_overrides(
         "memory_log_max_entries": None,
         # LLM settings — per-tier provider/model/URL so quick and deep can use different providers
         "quick_llm_provider": "openai",
-        "quick_think_llm": "gpt-5.4-mini",
+        "quick_think_llm": "gpt-5.6-luna",
         "quick_backend_url": None,
         "quick_provider_kwargs": {},  # e.g. {"reasoning_effort": "low"} for openai
         "deep_llm_provider": "openai",
-        "deep_think_llm": "gpt-5.5",
+        "deep_think_llm": "gpt-5.6",
         "deep_backend_url": None,
         "deep_provider_kwargs": {},  # e.g. {"thinking_level": "high"} for google
         # Optional third "reasoning" tier for the debate nodes (bull/bear
@@ -108,6 +115,11 @@ DEFAULT_CONFIG = _apply_env_overrides(
         # provider/SDK at its own default (usually 2). Raise it to ride out bursty
         # 429 throttling on rate-limited deployments instead of aborting a run (#1091).
         "llm_max_retries": None,
+        # Cap on output tokens forwarded to every provider chat client. None leaves
+        # each provider at its own default. Set it to bound a model that emits
+        # unbounded reasoning/output and hangs or trips a gateway idle timeout
+        # (e.g. some deepseek-v4-flash deployments, #1204).
+        "max_tokens": None,
         # Checkpoint/resume: when True, LangGraph saves state after each node
         # so a crashed run can resume from the last successful step.
         "checkpoint_enabled": False,

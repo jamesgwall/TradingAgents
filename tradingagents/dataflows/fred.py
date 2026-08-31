@@ -129,8 +129,12 @@ def get_macro_data(
     Args:
         indicator: A friendly alias (e.g. "cpi", "unemployment", "10y_treasury")
             or a raw FRED series ID (e.g. "CPIAUCSL", "DGS10").
-        curr_date: End of the window (yyyy-mm-dd); no later observations are
-            returned, so a past date never leaks future data.
+        curr_date: The as-of date (yyyy-mm-dd). It bounds the observation window
+            AND pins the data vintage: FRED is queried with
+            ``realtime_start = realtime_end = curr_date`` so a historical run sees
+            the values that were actually published by that date, not later
+            revisions. Without this, revision-prone series (CPI, GDP, ...) would
+            leak future information into a backtest (#1275).
         look_back_days: Trailing window length; ``None`` uses DEFAULT_LOOKBACK_DAYS.
 
     Returns:
@@ -145,10 +149,19 @@ def get_macro_data(
 
     series_id = _resolve_series_id(indicator)
 
+    # Pin the data vintage to curr_date. FRED defaults both realtime bounds to
+    # today, which serves the LATEST revision of every observation; a single-day
+    # realtime interval asks for the values known as of curr_date instead. This
+    # is applied to both the metadata and observations requests (#1275).
+    realtime = {"realtime_start": curr_date, "realtime_end": curr_date}
+
     try:
-        meta = _request("series", {"series_id": series_id}).get("seriess") or []
+        meta = _request("series", {"series_id": series_id, **realtime}).get("seriess") or []
         if not meta:
-            return f"FRED series '{series_id}' not found. Pass a known alias (e.g. 'cpi', 'unemployment') or a valid FRED series ID."
+            return (
+                f"FRED series '{series_id}' not found. Pass a known alias "
+                f"(e.g. 'cpi', 'unemployment') or a valid FRED series ID."
+            )
 
         info = meta[0]
         title = info.get("title", series_id)
@@ -163,6 +176,7 @@ def get_macro_data(
                 "observation_start": start_date,
                 "observation_end": curr_date,
                 "sort_order": "asc",
+                **realtime,
             },
         ).get("observations", [])
 
@@ -206,7 +220,9 @@ def get_macro_data(
             note = f"\n_(showing the most recent {MAX_ROWS} of {len(points)} observations)_\n"
 
         table = (
-            "\n| Date | Value |\n| --- | --- |\n" + "\n".join(f"| {d} | {v} |" for d, v in shown) + "\n"
+            "\n| Date | Value |\n| --- | --- |\n"
+            + "\n".join(f"| {d} | {v} |" for d, v in shown)
+            + "\n"
         )
 
         return header + summary + note + table
