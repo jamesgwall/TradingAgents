@@ -44,6 +44,8 @@ This document catalogs the personalized modifications in `jamesgwall/TradingAgen
 ### Capabilities Table (`tradingagents/llm_clients/capabilities.py`)
 - Text-only wrapper models:
   ```python
+  "gemini-3.8-flash": _WRAPPER_TEXT_ONLY,
+  "gemini-3.8-flash-high": _WRAPPER_TEXT_ONLY,
   "gemini-3.7-flash": _WRAPPER_TEXT_ONLY,
   "gemini-3.7-flash-high": _WRAPPER_TEXT_ONLY,
   "gemini-3.6-flash": _WRAPPER_TEXT_ONLY,
@@ -53,7 +55,7 @@ This document catalogs the personalized modifications in `jamesgwall/TradingAgen
   ```
 
 ### Model Catalog (`tradingagents/llm_clients/model_catalog.py`)
-- Google options including Gemini 3.7 Flash and Gemini 3.6 Flash across quick and deep tiers.
+- Google options including Gemini 3.8 Flash, Gemini 3.7 Flash, and Gemini 3.6 Flash across quick and deep tiers.
 
 ---
 

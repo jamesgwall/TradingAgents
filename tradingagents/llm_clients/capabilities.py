@@ -119,6 +119,8 @@ _BY_ID: dict[str, ModelCapabilities] = {
     "MiniMax-M2.1-highspeed": _MINIMAX_THINKING,
     "MiniMax-M2": _MINIMAX_THINKING,
     # llm-session-wrapper deep/reasoning-node model id (served by agy/claude CLIs).
+    "gemini-3.8-flash": _WRAPPER_TEXT_ONLY,
+    "gemini-3.8-flash-high": _WRAPPER_TEXT_ONLY,
     "gemini-3.7-flash": _WRAPPER_TEXT_ONLY,
     "gemini-3.7-flash-high": _WRAPPER_TEXT_ONLY,
     "gemini-3.6-flash": _WRAPPER_TEXT_ONLY,

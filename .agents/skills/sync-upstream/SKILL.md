@@ -38,8 +38,8 @@ The personal fork contains several key customizations that must **always** be re
    - **Congressional Trades Analyst**: House and Senate e-filed PTR disclosures, committee enrichments, and store (`tradingagents/agents/analysts/congressional_trades_analyst.py`, `tradingagents/dataflows/congress_*`).
 
 3. **Google LLM Capabilities & Model Catalog**:
-   - Gemini 3.7 Flash, Gemini 3.6 Flash, Gemini 3.5 Flash options in catalog and capabilities table.
-   - Text-only wrapper capability row (`gemini-3.7-flash`, `gemini-3.7-flash-high`, `gemini-3.6-flash`, etc. with `preferred_structured_method="none"`).
+   - Gemini 3.8 Flash, Gemini 3.7 Flash, Gemini 3.6 Flash, Gemini 3.5 Flash options in catalog and capabilities table.
+   - Text-only wrapper capability row (`gemini-3.8-flash`, `gemini-3.8-flash-high`, `gemini-3.7-flash`, `gemini-3.7-flash-high`, `gemini-3.6-flash`, etc. with `preferred_structured_method="none"`).
 
 4. **Dataflow Resilience & Hardening**:
    - Senate 503 retry logic.
@@ -106,12 +106,12 @@ When conflicts occur, inspect each unmerged file with `git status` and resolve t
   - Incorporate upstream vintage point-in-time pinning (`realtime_start` / `realtime_end`).
 
 - **`tradingagents/llm_clients/capabilities.py` & `tests/test_capabilities.py`**:
-  - Keep `_WRAPPER_TEXT_ONLY` capability entries for `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`.
+  - Keep `_WRAPPER_TEXT_ONLY` capability entries for `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`.
   - Keep `TestWrapperTextOnly` tests.
   - Incorporate upstream namespace handling (e.g. OpenRouter `deepseek/` stripping) and `TestOpenRouterDeepSeekNamespace`.
 
 - **`tradingagents/llm_clients/model_catalog.py` & `google_client.py` & `openai_client.py`**:
-  - Keep Gemini 3.7 / 3.6 catalog additions and capabilities.
+  - Keep Gemini 3.8 / 3.7 / 3.6 catalog additions and capabilities.
   - Incorporate upstream `max_tokens` / `max_output_tokens` passthrough and updated model listings.
 
 - **`tradingagents/agents/schemas.py`**:
@@ -132,7 +132,7 @@ git commit -m "Merge remote-tracking branch 'upstream/main' into sync/upstream-<
 
 Sync upstream <version> into fork, keeping all personalized customizations:
 - Per-tier quick/deep/reasoning LLM provider configurations
-- Google model catalog & capabilities (Gemini 3.7 Flash, Gemini 3.6 Flash)
+- Google model catalog & capabilities (Gemini 3.8 Flash, Gemini 3.7 Flash, Gemini 3.6 Flash)
 - Congressional trades & transcript analyst dataflows and nodes
 - Dataflow hardening (Senate retry, Reddit cooldown, House timeout, ETF fundamentals, FRED error handling)
 - Python 3.14 / uv tooling support"
