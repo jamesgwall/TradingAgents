@@ -138,11 +138,13 @@ Sync upstream <version> into fork, keeping all personalized customizations:
 - Python 3.14 / uv tooling support"
 ```
 
-### Step 8: Update Main & Push to Personal Fork
-Fast-forward or merge the sync branch into local `main`, then push both `main` and the sync branch to `origin`:
+### Step 8: Update Main, Push to Fork & Clean Up
+Fast-forward or merge the sync branch into local `main`, push `main` to `origin`, and delete the temporary local sync branch:
 ```bash
 git checkout main
 git merge sync/upstream-<version-or-date>
-git push origin main sync/upstream-<version-or-date>
+git push origin main
+git branch -d sync/upstream-<version-or-date>
 ```
 Verify `git status` is clean on `main`.
+
