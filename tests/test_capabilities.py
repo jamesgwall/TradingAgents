@@ -123,12 +123,22 @@ class TestWrapperTextOnly:
     straight to a single free-text call instead of a wasted structured attempt."""
 
     def test_wrapper_model_has_no_structured_method(self):
-        for model in ("gemini-3.8-flash", "gemini-3.8-flash-high", "gemini-3.7-flash", "gemini-3.5-flash"):
+        for model in (
+            "gemini-3.8-flash",
+            "gemini-3.8-flash-high",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash",
+        ):
             caps = get_capabilities(model)
             assert caps.preferred_structured_method == "none"
 
     def test_wrapper_model_rejects_tools_and_json(self):
-        for model in ("gemini-3.8-flash", "gemini-3.8-flash-high", "gemini-3.7-flash", "gemini-3.5-flash"):
+        for model in (
+            "gemini-3.8-flash",
+            "gemini-3.8-flash-high",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash",
+        ):
             caps = get_capabilities(model)
             assert caps.supports_tool_choice is False
             assert caps.supports_json_mode is False

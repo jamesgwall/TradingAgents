@@ -8,6 +8,7 @@ import pytest
 from tradingagents.llm_clients.openai_client import (
     OPENAI_COMPATIBLE_PROVIDERS,
     DeepSeekChatOpenAI,
+    LocalCompatibleChatOpenAI,
     MinimaxChatOpenAI,
     NormalizedChatOpenAI,
     is_openai_compatible,
@@ -52,7 +53,7 @@ def test_registry_membership():
         ("kimi", "https://api.moonshot.ai/v1", NormalizedChatOpenAI, False),
         ("groq", "https://api.groq.com/openai/v1", NormalizedChatOpenAI, False),
         ("nvidia", "https://integrate.api.nvidia.com/v1", NormalizedChatOpenAI, False),
-        ("ollama", "http://localhost:11434/v1", NormalizedChatOpenAI, False),
+        ("ollama", "http://localhost:11434/v1", LocalCompatibleChatOpenAI, False),
     ],
 )
 def test_registry_spec(provider, base_url, chat_class, responses):

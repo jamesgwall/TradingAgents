@@ -71,3 +71,6 @@ class AgentState(MessagesState):
         str,
         "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)",
     ]
+    portfolio_context: Annotated[
+        str, "Caller-supplied holdings and cash, rendered at run start; empty when not provided"
+    ]

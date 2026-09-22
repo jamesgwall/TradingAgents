@@ -129,8 +129,16 @@ def get_analysis_date() -> str:
     return date.strip()
 
 
-def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType]:
-    """Select analysts using an interactive checkbox."""
+def _matching_choice(options, default):
+    """The option value equal to ``default``, or None to leave the menu as is."""
+    return next((value for _, value in options if value == default), None)
+
+
+def select_analysts(asset_type: AssetType = AssetType.STOCK, default=None) -> list[AnalystType]:
+    """Select analysts using an interactive checkbox.
+
+    ``default`` pre-checks the previous run's analysts; the prompt still shows.
+    """
     available_analysts = filter_analysts_for_asset_type(
         [value for _, value in ANALYST_ORDER],
         asset_type,
@@ -138,7 +146,7 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",
         choices=[
-            questionary.Choice(display, value=value)
+            questionary.Choice(display, value=value, checked=value.value in (default or []))
             for display, value in ANALYST_ORDER
             if value in available_analysts
         ],
@@ -161,7 +169,7 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType
     return choices
 
 
-def select_research_depth() -> int:
+def select_research_depth(default=None) -> int:
     """Select research depth using an interactive selection."""
 
     # Define research depth options with their corresponding values
@@ -174,6 +182,7 @@ def select_research_depth() -> int:
     choice = questionary.select(
         "Select Your [Research Depth]:",
         choices=[questionary.Choice(display, value=value) for display, value in DEPTH_OPTIONS],
+        default=_matching_choice(DEPTH_OPTIONS, default),
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -297,7 +306,7 @@ def _prompt_custom_model_id() -> str:
     return _require_text("Enter model ID:", "Please enter a model ID.")
 
 
-def _select_model(provider: str, mode: str) -> str:
+def _select_model(provider: str, mode: str, default=None) -> str:
     """Select a model for the given provider and mode (quick/deep)."""
     if provider.lower() == "openrouter":
         return select_openrouter_model(mode)
@@ -314,6 +323,7 @@ def _select_model(provider: str, mode: str) -> str:
             questionary.Choice(display, value=value)
             for display, value in get_model_options(provider, mode)
         ],
+        default=_matching_choice(get_model_options(provider, mode), default),
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -334,14 +344,14 @@ def _select_model(provider: str, mode: str) -> str:
     return choice
 
 
-def select_shallow_thinking_agent(provider) -> str:
+def select_shallow_thinking_agent(provider, default=None) -> str:
     """Select shallow thinking llm engine using an interactive selection."""
-    return _select_model(provider, "quick")
+    return _select_model(provider, "quick", default)
 
 
-def select_deep_thinking_agent(provider) -> str:
+def select_deep_thinking_agent(provider, default=None) -> str:
     """Select deep thinking llm engine using an interactive selection."""
-    return _select_model(provider, "deep")
+    return _select_model(provider, "deep", default)
 
 
 def _llm_provider_table() -> list[tuple[str, str, str | None]]:
@@ -361,7 +371,9 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
         ("xAI", "xai", "https://api.x.ai/v1"),
         ("DeepSeek", "deepseek", "https://api.deepseek.com"),
         ("Qwen", "qwen", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
-        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
+        # Z.AI international, the platform ZHIPU_API_KEY belongs to; the CN
+        # platform is the separate glm-cn key, chosen in the region prompt.
+        ("GLM", "glm", "https://api.z.ai/api/paas/v4/"),
         ("MiniMax", "minimax", "https://api.minimax.io/v1"),
         ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),
         ("Mistral", "mistral", "https://api.mistral.ai/v1"),
@@ -450,11 +462,12 @@ def resolve_backend_url(
     return env_url or menu_url or provider_default_url(provider)
 
 
-def prompt_openai_compatible_url() -> str:
+def prompt_openai_compatible_url(default=None) -> str:
     """Prompt for a custom OpenAI-compatible endpoint base URL."""
     url = questionary.text(
         "Enter the OpenAI-compatible base URL "
         "(e.g. http://localhost:8000/v1 for vLLM, http://localhost:1234/v1 for LM Studio):",
+        default=default or "",
         validate=lambda x: (
             x.strip().startswith(("http://", "https://"))
             or "Enter a URL starting with http:// or https://"
@@ -466,9 +479,13 @@ def prompt_openai_compatible_url() -> str:
     return url.strip()
 
 
-def select_llm_provider() -> tuple[str, str | None]:
+def select_llm_provider(default=None) -> tuple[str, str | None]:
     """Select the LLM provider and its API endpoint."""
     PROVIDERS = _llm_provider_table()
+    # A region-specific key (qwen-cn) is chosen in a later prompt; the menu
+    # lists the base provider.
+    base = (default or "").split("-cn")[0]
+    preselected = next(((key, url) for _, key, url in PROVIDERS if key == base), None)
 
     choice = questionary.select(
         "Select your LLM Provider:",
@@ -476,6 +493,7 @@ def select_llm_provider() -> tuple[str, str | None]:
             questionary.Choice(display, value=(provider_key, url))
             for display, provider_key, url in PROVIDERS
         ],
+        default=preselected,
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -718,31 +736,41 @@ def ensure_api_key(provider: str) -> str | None:
         return None
 
     env_path = find_dotenv(usecwd=True) or str(Path.cwd() / ".env")
-    Path(env_path).touch(exist_ok=True)
+    # The file holds credentials, so make it owner-only before writing: create
+    # it 0600 when absent, and tighten an existing one (set_key keeps the mode).
+    if not os.path.exists(env_path):
+        os.close(os.open(env_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+    os.chmod(env_path, 0o600)
     set_key(env_path, env_var, key)
     os.environ[env_var] = key
     console.print(f"[green]Saved {env_var} to {env_path}[/green]")
     return key
 
 
-def ask_output_language() -> str:
-    """Ask for report output language."""
+def ask_output_language(default=None) -> str:
+    """Ask for report output language.
+
+    ``default`` is offered only when it is one of the listed languages: a custom
+    one entered last time is free text, which the menu cannot preselect.
+    """
+    choices = [
+        questionary.Choice("English (default)", "English"),
+        questionary.Choice("Chinese (中文)", "Chinese"),
+        questionary.Choice("Japanese (日本語)", "Japanese"),
+        questionary.Choice("Korean (한국어)", "Korean"),
+        questionary.Choice("Hindi (हिन्दी)", "Hindi"),
+        questionary.Choice("Spanish (Español)", "Spanish"),
+        questionary.Choice("Portuguese (Português)", "Portuguese"),
+        questionary.Choice("French (Français)", "French"),
+        questionary.Choice("German (Deutsch)", "German"),
+        questionary.Choice("Arabic (العربية)", "Arabic"),
+        questionary.Choice("Russian (Русский)", "Russian"),
+        questionary.Choice("Custom language", "custom"),
+    ]
     choice = questionary.select(
         "Select Output Language:",
-        choices=[
-            questionary.Choice("English (default)", "English"),
-            questionary.Choice("Chinese (中文)", "Chinese"),
-            questionary.Choice("Japanese (日本語)", "Japanese"),
-            questionary.Choice("Korean (한국어)", "Korean"),
-            questionary.Choice("Hindi (हिन्दी)", "Hindi"),
-            questionary.Choice("Spanish (Español)", "Spanish"),
-            questionary.Choice("Portuguese (Português)", "Portuguese"),
-            questionary.Choice("French (Français)", "French"),
-            questionary.Choice("German (Deutsch)", "German"),
-            questionary.Choice("Arabic (العربية)", "Arabic"),
-            questionary.Choice("Russian (Русский)", "Russian"),
-            questionary.Choice("Custom language", "custom"),
-        ],
+        choices=choices,
+        default=_matching_choice([(c.title, c.value) for c in choices], default),
         style=questionary.Style(
             [
                 ("selected", "fg:yellow noinherit"),

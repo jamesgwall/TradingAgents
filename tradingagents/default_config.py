@@ -14,8 +14,8 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # Use the per-tier config keys directly (or a future per-tier env var) when
 # the two tiers need different providers.
 _ENV_OVERRIDES = {
-    "TRADINGAGENTS_LLM_PROVIDER": ("quick_llm_provider", "deep_llm_provider"),
-    "TRADINGAGENTS_LLM_BACKEND_URL": ("quick_backend_url", "deep_backend_url"),
+    "TRADINGAGENTS_LLM_PROVIDER": ("llm_provider", "quick_llm_provider", "deep_llm_provider"),
+    "TRADINGAGENTS_LLM_BACKEND_URL": ("backend_url", "quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_DEEP_THINK_LLM": "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM": "quick_think_llm",
     # Optional third "reasoning" tier for the debate nodes (see DEFAULT_CONFIG).
@@ -83,6 +83,8 @@ DEFAULT_CONFIG = _apply_env_overrides(
         # Pending entries are never pruned. None disables rotation entirely.
         "memory_log_max_entries": None,
         # LLM settings — per-tier provider/model/URL so quick and deep can use different providers
+        "llm_provider": "openai",
+        "backend_url": None,
         "quick_llm_provider": "openai",
         "quick_think_llm": "gpt-5.6-luna",
         "quick_backend_url": None,
@@ -169,6 +171,9 @@ DEFAULT_CONFIG = _apply_env_overrides(
         # based on the ticker's exchange suffix. SPY remains the US default
         # so the reflection label keeps reading "Alpha vs SPY" for US tickers
         # while non-US tickers get their regional index automatically.
+        # Trading days after the analysis date over which a decision's outcome is
+        # measured, for reflection and for the backtest figures.
+        "holding_period_days": 5,
         "benchmark_ticker": None,
         "benchmark_map": {
             ".NS": "^NSEI",  # NSE India (Nifty 50)

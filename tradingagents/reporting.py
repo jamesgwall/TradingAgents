@@ -39,6 +39,20 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
             final_state["fundamentals_report"], encoding="utf-8"
         )
         analyst_parts.append(("Fundamentals Analyst", final_state["fundamentals_report"]))
+    if final_state.get("transcript_report"):
+        analysts_dir.mkdir(exist_ok=True)
+        (analysts_dir / "transcript.md").write_text(
+            final_state["transcript_report"], encoding="utf-8"
+        )
+        analyst_parts.append(("Transcript Analyst", final_state["transcript_report"]))
+    if final_state.get("congressional_trades_report"):
+        analysts_dir.mkdir(exist_ok=True)
+        (analysts_dir / "congressional_trades.md").write_text(
+            final_state["congressional_trades_report"], encoding="utf-8"
+        )
+        analyst_parts.append(
+            ("Congressional Trades Analyst", final_state["congressional_trades_report"])
+        )
     if analyst_parts:
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")

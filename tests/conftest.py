@@ -1,6 +1,8 @@
 """Shared pytest fixtures that prevent CI hangs when API keys are absent."""
 
 import os
+
+os.environ["TZ"] = "UTC"
 from unittest.mock import MagicMock, patch
 
 import pytest
