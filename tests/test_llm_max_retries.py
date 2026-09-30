@@ -7,12 +7,10 @@ opt-in llm_max_retries knob forwarded to every provider chat client.
 
 from __future__ import annotations
 
-import importlib
-
 import pytest
 
 import tradingagents.default_config as default_config_module
-from tradingagents.graph.trading_graph import TradingAgentsGraph, _coerce_max_retries
+from tradingagents.llm_clients.factory import _coerce_max_retries, build_llm_kwargs
 
 # --- coercion / validation -------------------------------------------------
 
@@ -47,12 +45,6 @@ def test_coerce_rejects_non_integers(bad):
 # --- forwarding into provider kwargs --------------------------------------
 
 
-def _bare_graph(config):
-    g = object.__new__(TradingAgentsGraph)
-    g.config = config
-    return g
-
-
 # The retry budget is a cross-provider knob applied to every tier, so the tier
 # passed to the fork's per-tier _get_provider_kwargs is arbitrary — "quick"
 # just exercises the per-tier signature (mirrors test_temperature_config).
@@ -60,59 +52,50 @@ def _bare_graph(config):
 
 @pytest.mark.unit
 def test_not_forwarded_when_unset():
-    kwargs = _bare_graph(
-        {"quick_llm_provider": "openai", "llm_max_retries": None}
-    )._get_provider_kwargs("quick")
+    kwargs = build_llm_kwargs({"llm_provider": "openai", "llm_max_retries": None})
     assert "max_retries" not in kwargs
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("provider", ["openai", "anthropic", "google"])
-@pytest.mark.parametrize("tier", ["quick", "deep", "reasoning"])
-def test_forwarded_across_providers_and_tiers(provider, tier):
-    kwargs = _bare_graph(
-        {f"{tier}_llm_provider": provider, "llm_max_retries": 6}
-    )._get_provider_kwargs(tier)
+def test_forwarded_across_providers(provider):
+    kwargs = build_llm_kwargs({"llm_provider": provider, "llm_max_retries": 6})
     assert kwargs["max_retries"] == 6
 
 
 @pytest.mark.unit
 def test_forwarded_env_string_is_coerced():
     # env vars arrive as strings; the consumer coerces (like temperature)
-    kwargs = _bare_graph(
-        {"quick_llm_provider": "openai", "llm_max_retries": "4"}
-    )._get_provider_kwargs("quick")
+    kwargs = build_llm_kwargs({"llm_provider": "openai", "llm_max_retries": "4"})
     assert kwargs["max_retries"] == 4
 
 
 @pytest.mark.unit
 def test_invalid_config_value_fails_loudly():
     with pytest.raises(ValueError):
-        _bare_graph({"quick_llm_provider": "openai", "llm_max_retries": -1})._get_provider_kwargs(
-            "quick"
-        )
+        build_llm_kwargs({"llm_provider": "openai", "llm_max_retries": -1})
 
 
 # --- env overlay -----------------------------------------------------------
 
-
-def _reload_with_env(monkeypatch, **overrides):
+def _config_with_env(monkeypatch, **overrides):
+    """The defaults as the environment given here would set them."""
     for key in list(default_config_module._ENV_OVERRIDES):
         monkeypatch.delenv(key, raising=False)
     for key, val in overrides.items():
         monkeypatch.setenv(key, val)
-    return importlib.reload(default_config_module)
+    return default_config_module.build_default_config()
 
 
 @pytest.mark.unit
 def test_default_is_none(monkeypatch):
-    dc = _reload_with_env(monkeypatch)
-    assert dc.DEFAULT_CONFIG["llm_max_retries"] is None
+    config = _config_with_env(monkeypatch)
+    assert config["llm_max_retries"] is None
 
 
 @pytest.mark.unit
 def test_env_override_sets_config(monkeypatch):
-    dc = _reload_with_env(monkeypatch, TRADINGAGENTS_LLM_MAX_RETRIES="8")
+    config = _config_with_env(monkeypatch, TRADINGAGENTS_LLM_MAX_RETRIES="8")
     # None-default key: env value arrives as a string and is coerced downstream.
-    assert dc.DEFAULT_CONFIG["llm_max_retries"] == "8"
-    assert _coerce_max_retries(dc.DEFAULT_CONFIG["llm_max_retries"]) == 8
+    assert config["llm_max_retries"] == "8"
+    assert _coerce_max_retries(config["llm_max_retries"]) == 8

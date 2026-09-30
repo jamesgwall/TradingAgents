@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import importlib
 
-from langgraph.prebuilt import ToolNode
-
 import tradingagents.default_config as default_config_module
 from tradingagents.graph import setup as graph_setup_mod
 from tradingagents.graph.conditional_logic import ConditionalLogic
@@ -97,20 +95,17 @@ def _capture_setup(monkeypatch):
     }
     for name, label in factories.items():
         monkeypatch.setattr(graph_setup_mod, name, _factory(label))
-    # msg-delete node takes no llm; keep it a valid no-op node.
-    monkeypatch.setattr(graph_setup_mod, "create_msg_delete", lambda: lambda state: state)
     return seen
 
 
 def _build(monkeypatch, *, reasoning_thinking_llm):
     seen = _capture_setup(monkeypatch)
     quick, deep = object(), object()
-    tool_nodes = {"market": ToolNode([])}
     gs = GraphSetup(
         quick_thinking_llm=quick,
         deep_thinking_llm=deep,
-        tool_nodes=tool_nodes,
         conditional_logic=ConditionalLogic(),
+        max_tool_rounds=20,
         reasoning_thinking_llm=reasoning_thinking_llm,
     )
     gs.setup_graph(selected_analysts=("market",))

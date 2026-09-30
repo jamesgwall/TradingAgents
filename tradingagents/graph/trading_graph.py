@@ -1,46 +1,29 @@
-# TradingAgents/graph/trading_graph.py
-
+import hashlib
 import json
 import logging
 import os
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import yfinance as yf
-from langgraph.prebuilt import ToolNode
-
-# Import the abstract tool methods from agent_utils
-from tradingagents.agents.utils.agent_utils import (
-    build_instrument_context,
-    get_balance_sheet,
-    get_cashflow,
-    get_fundamentals,
-    get_global_news,
-    get_income_statement,
-    get_indicators,
-    get_insider_transactions,
-    get_macro_indicators,
-    get_news,
-    get_prediction_markets,
-    get_stock_data,
-    get_verified_market_snapshot,
-    resolve_instrument_identity,
-)
-from tradingagents.agents.utils.memory import TradingMemoryLog
-from tradingagents.dataflows.config import set_config
-from tradingagents.dataflows.utils import get_current_date, safe_ticker_component
+import tradingagents
+from tradingagents.agents.context import build_instrument_context, resolve_instrument_identity
+from tradingagents.agents.rating import run_rating
+from tradingagents.dataflows.config import run_config, run_config_context, set_config
+from tradingagents.dataflows.date_window import get_current_date, is_historical
+from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
+from tradingagents.llm_clients.factory import _coerce_max_retries, _coerce_max_tokens
+from tradingagents.memory import TradingMemoryLog, settlement
+from tradingagents.memory.reflection import Reflector
 from tradingagents.reporting import write_report_tree
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
 from .propagation import Propagator
-from .reflection import Reflector
 from .setup import GraphSetup
-from .signal_processing import SignalProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -59,35 +42,11 @@ def _validate_trade_date(trade_date) -> str:
     return value
 
 
-def _coerce_max_retries(value):
-    """Validate an ``llm_max_retries`` value to a non-negative int.
-
-    Accepts an int or a numeric string (env vars arrive as strings). Rejects
-    booleans and negatives loudly so a misconfiguration fails at startup rather
-    than silently disabling retries.
-    """
-    if isinstance(value, bool):
-        raise ValueError(f"llm_max_retries must be an integer, not a boolean: {value!r}")
-    try:
-        n = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"llm_max_retries must be an integer, got {value!r}") from exc
-    if n < 0:
-        raise ValueError(f"llm_max_retries must be >= 0, got {n}")
-    return n
-
-
-def _coerce_max_tokens(value):
-    """Validate a ``max_tokens`` value to a positive int (env vars are strings)."""
-    if isinstance(value, bool):
-        raise ValueError(f"max_tokens must be an integer, not a boolean: {value!r}")
-    try:
-        n = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"max_tokens must be an integer, got {value!r}") from exc
-    if n <= 0:
-        raise ValueError(f"max_tokens must be > 0, got {n}")
-    return n
+# Config keys that do not change what a run writes: where it keeps its files,
+# whether it checkpoints, and how often it retries a provider.
+_NOT_IN_SIGNATURE = frozenset({
+    "results_dir", "data_cache_dir", "memory_log_path", "checkpoint_enabled", "llm_max_retries",
+})
 
 
 class TradingAgentsGraph:
@@ -112,10 +71,8 @@ class TradingAgentsGraph:
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
 
-        # Update the interface's config
         set_config(self.config)
 
-        # Create necessary directories
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
 
@@ -123,7 +80,6 @@ class TradingAgentsGraph:
         quick_kwargs = self._get_provider_kwargs("quick")
         deep_kwargs = self._get_provider_kwargs("deep")
 
-        # Add callbacks to kwargs if provided (passed to LLM constructor)
         if self.callbacks:
             quick_kwargs["callbacks"] = self.callbacks
             deep_kwargs["callbacks"] = self.callbacks
@@ -151,33 +107,31 @@ class TradingAgentsGraph:
 
         self.memory_log = TradingMemoryLog(self.config)
 
-        # Create tool nodes
-        self.tool_nodes = self._create_tool_nodes()
-
-        # Initialize components
         self.conditional_logic = ConditionalLogic(
             max_debate_rounds=self.config["max_debate_rounds"],
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
         )
+        # An analyst takes two graph steps per tool round, plus its first turn
+        # and its wrap-up; a limit past the recursion limit would end the run
+        # there instead.
+        max_tool_rounds, max_recur_limit = self.config["max_tool_rounds"], self.config["max_recur_limit"]
+        if 2 * max_tool_rounds + 2 >= max_recur_limit:
+            raise ValueError(
+                f"max_tool_rounds={max_tool_rounds} needs max_recur_limit above {2 * max_tool_rounds + 2}"
+            )
         self.graph_setup = GraphSetup(
             self.quick_thinking_llm,
             self.deep_thinking_llm,
-            self.tool_nodes,
             self.conditional_logic,
+            max_tool_rounds,
             analyst_concurrency_limit=self.config.get("analyst_concurrency_limit", 1),
             reasoning_thinking_llm=self.reasoning_thinking_llm,
         )
 
         self.propagator = Propagator(
-            max_recur_limit=self.config.get("max_recur_limit", 100),
+            max_recur_limit=max_recur_limit,
         )
         self.reflector = Reflector(self.quick_thinking_llm)
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
-
-        # State tracking
-        self.curr_state = None
-        self.ticker = None
-        self.log_states_dict = {}  # date to full state dict
 
         # Graph-shape-affecting run choices, kept for the checkpoint signature.
         self.selected_analysts = tuple(selected_analysts)
@@ -264,194 +218,6 @@ class TradingAgentsGraph:
         )
         return client.get_llm()
 
-    def _create_tool_nodes(self) -> dict[str, ToolNode]:
-        """Create tool nodes for different data sources using abstract methods."""
-        return {
-            "market": ToolNode(
-                [
-                    # Core stock data tools
-                    get_stock_data,
-                    # Technical indicators
-                    get_indicators,
-                    # Deterministic verification snapshot (bound to the analyst
-                    # LLM and required by its prompt; must be executable here or
-                    # the call fails and the model reports it "unavailable").
-                    get_verified_market_snapshot,
-                ]
-            ),
-            "social": ToolNode(
-                [
-                    # News tools for social media analysis
-                    get_news,
-                ]
-            ),
-            "news": ToolNode(
-                [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
-                    get_macro_indicators,
-                    get_prediction_markets,
-                ]
-            ),
-            "fundamentals": ToolNode(
-                [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
-                ]
-            ),
-            # Transcript analyst never makes LangGraph tool calls; this node
-            # exists to satisfy the graph pattern but is never routed to.
-            "transcript": ToolNode([]),
-            # Congressional trades analyst likewise fetches directly and never
-            # emits tool calls; empty node satisfies the graph pattern.
-            "congress": ToolNode([]),
-        }
-
-    def _resolve_benchmark(self, ticker: str) -> str:
-        """Pick the benchmark ticker for alpha calculation against ``ticker``.
-
-        ``config["benchmark_ticker"]`` overrides everything when set; otherwise
-        the suffix map matches the ticker's exchange suffix (e.g. ``.T`` for
-        Tokyo). US-listed tickers without a dotted suffix fall through to the
-        empty-suffix entry (SPY by default). Unrecognised suffixes (including
-        US tickers with dots like ``BRK.B``) also fall back to the empty-suffix
-        entry, which is the right default because the alpha calculation works
-        in USD.
-        """
-        from tradingagents.dataflows.symbol_utils import normalize_symbol
-
-        explicit = self.config.get("benchmark_ticker")
-        if explicit:
-            # Same alias mapping as the analyzed ticker; an unmapped alias finds
-            # no prices, and the decision would stay pending for good.
-            return normalize_symbol(explicit)
-        benchmark_map = self.config.get("benchmark_map", {})
-        ticker_upper = normalize_symbol(ticker)
-        for suffix, benchmark in benchmark_map.items():
-            if suffix and ticker_upper.endswith(suffix.upper()):
-                return benchmark
-        return benchmark_map.get("", "SPY")
-
-    def _fetch_returns(
-        self,
-        ticker: str,
-        trade_date: str,
-        holding_days: int = 5,
-        benchmark: str = "SPY",
-    ) -> tuple[float | None, float | None, int | None, str | None]:
-        """Fetch raw and alpha return for ticker over holding_days from trade_date.
-
-        ``benchmark`` is the index used as the alpha baseline (resolved by the
-        caller via ``_resolve_benchmark``). Returns ``(raw_return, alpha_return,
-        holding_days, resolution_date)`` — where ``resolution_date`` is the date
-        of the last price bar used, i.e. when the outcome became known (#1251) —
-        or ``(None, None, None, None)`` when the outcome cannot be settled yet:
-        the full holding window has not traded (#1169), or the symbol is delisted
-        or unreachable.
-        """
-        from tradingagents.dataflows.symbol_utils import normalize_symbol
-
-        try:
-            start = datetime.strptime(trade_date, "%Y-%m-%d")
-            # holding_days counts trading days, so ask for the calendar span they
-            # occupy (about 7 for every 5) plus a week for holidays.
-            end = start + timedelta(days=round(holding_days * 7 / 5) + 7)
-            end_str = end.strftime("%Y-%m-%d")
-
-            # Normalize so the realized-return lookup hits the same instrument
-            # the analysis priced (e.g. XAUUSD -> GC=F) (#984). The benchmark is
-            # already a canonical Yahoo symbol from ``_resolve_benchmark``.
-            stock = yf.Ticker(normalize_symbol(ticker)).history(start=trade_date, end=end_str)
-            bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
-
-            # Require the full holding window in both series. A rerun before it
-            # has traded leaves the entry pending to retry next run, rather than
-            # settling on a premature partial return (#1169).
-            if len(stock) <= holding_days or len(bench) <= holding_days:
-                return None, None, None, None
-
-            raw = float(
-                (stock["Close"].iloc[holding_days] - stock["Close"].iloc[0])
-                / stock["Close"].iloc[0]
-            )
-            bench_ret = float(
-                (bench["Close"].iloc[holding_days] - bench["Close"].iloc[0])
-                / bench["Close"].iloc[0]
-            )
-            alpha = raw - bench_ret
-            # The date of the last price bar used is when this outcome became
-            # known — the point-in-time cutoff for injecting the lesson (#1251).
-            resolution_date = stock.index[holding_days].strftime("%Y-%m-%d")
-            return raw, alpha, holding_days, resolution_date
-        except Exception as e:
-            logger.warning(
-                "Could not resolve outcome for %s on %s vs %s (will retry next run): %s",
-                ticker,
-                trade_date,
-                benchmark,
-                e,
-            )
-            return None, None, None, None
-
-    def _resolve_pending_entries(self, ticker: str) -> None:
-        """Resolve pending log entries for ticker at the start of a new run.
-
-        Fetches returns for each same-ticker pending entry, generates reflections,
-        then writes all updates in a single atomic batch write to avoid redundant I/O.
-        Skips entries whose price data is not yet available (too recent or delisted).
-
-        Trade-off: only same-ticker entries are resolved per run.  Entries for
-        other tickers accumulate until that ticker is run again.
-        """
-        pending = [e for e in self.memory_log.get_pending_entries() if e["ticker"] == ticker]
-        if not pending:
-            return
-
-        benchmark = self._resolve_benchmark(ticker)
-        updates = []
-        for entry in pending:
-            raw, alpha, days, resolution_date = self._fetch_returns(
-                ticker,
-                entry["date"],
-                self.config.get("holding_period_days", 5),
-                benchmark=benchmark,
-            )
-            if raw is None:
-                continue  # price not available yet — try again next run
-            try:
-                reflection = self.reflector.reflect_on_final_decision(
-                    final_decision=entry.get("decision", ""),
-                    raw_return=raw,
-                    alpha_return=alpha,
-                    benchmark_name=benchmark,
-                    holding_days=days,
-                )
-            except Exception as exc:
-                # Reflection calls a provider, and this runs on the way into a
-                # new run: a transient failure leaves the entry pending for the
-                # next one rather than stopping the analysis that was asked for.
-                logger.warning("Reflection failed for %s on %s: %s", ticker, entry["date"], exc)
-                continue
-            updates.append(
-                {
-                    "ticker": ticker,
-                    "trade_date": entry["date"],
-                    "raw_return": raw,
-                    "alpha_return": alpha,
-                    "holding_days": days,
-                    "reflection": reflection,
-                    "resolution_date": resolution_date,
-                }
-            )
-
-        if updates:
-            self.memory_log.batch_update_with_outcomes(updates)
-
     def resolve_instrument_context(
         self, ticker: str, asset_type: str = "stock", curr_date: str | None = None
     ) -> str:
@@ -474,26 +240,32 @@ class TradingAgentsGraph:
         None, disabling the filter so live behavior and pre-migration entries
         (which have no stored resolution date) are unaffected.
         """
-        td = str(trade_date)
-        return td if td < datetime.now().strftime("%Y-%m-%d") else None
+        return str(trade_date) if is_historical(trade_date) else None
 
     def _run_signature(self, asset_type: str, portfolio=None) -> str:
-        """Graph-shape inputs that must invalidate a checkpoint if changed.
+        """Run inputs that must invalidate a checkpoint if changed.
 
         Keyed into the checkpoint thread ID so a resume under a different analyst
         selection, debate/risk depth, or asset mode starts fresh instead of
-        silently continuing the previous graph (#1089).
+        silently continuing the previous graph (#1089). The rest of the config
+        counts too (provider, models, endpoint, language, vendors, limits): a
+        resume must not carry reports that other settings produced. Only where
+        the run keeps its files and how it retries are left out.
         """
-        return "|".join(
-            [
-                "analysts=" + ",".join(self.selected_analysts),
-                f"debate={self.config['max_debate_rounds']}",
-                f"risk={self.config['max_risk_discuss_rounds']}",
-                f"asset={asset_type}",
-                # None, an empty book and a changed book are three different runs.
-                f"portfolio={portfolio.fingerprint() if portfolio is not None else 'none'}",
-            ]
-        )
+        settings = {k: v for k, v in self.config.items() if k not in _NOT_IN_SIGNATURE}
+        digest = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:12]
+        return "|".join([
+            "analysts=" + ",".join(self.selected_analysts),
+            f"debate={self.config['max_debate_rounds']}",
+            f"risk={self.config['max_risk_discuss_rounds']}",
+            f"asset={asset_type}",
+            # None, an empty book and a changed book are three different runs.
+            f"portfolio={portfolio.fingerprint() if portfolio is not None else 'none'}",
+            # The layout itself: a checkpoint saved when analysts ran one after
+            # another has pending nodes this graph no longer has.
+            "analysts=parallel",
+            f"settings={digest}",
+        ])
 
     def propagate(self, company_name, trade_date, asset_type: str = "stock", portfolio=None):
         """Run the trading agents graph for a company on a specific date.
@@ -508,15 +280,13 @@ class TradingAgentsGraph:
         Returns ``(final_state, signal)`` where ``signal`` is one of the 5-tier
         ratings (Buy / Overweight / Hold / Underweight / Sell) or ``"REVIEW"``
         when the decision had no parseable rating (#1170); guard with
-        ``tradingagents.agents.utils.rating.is_review`` before mapping it to the
+        ``tradingagents.agents.rating.is_review`` before mapping it to the
         PortfolioRating enum.
         """
         trade_date = _validate_trade_date(trade_date)
-        self.ticker = company_name
 
-        with self.checkpoint_scope(
-            company_name, trade_date, asset_type, portfolio
-        ) as thread_id_value:
+        with run_config(self.config), \
+                self.checkpoint_scope(company_name, trade_date, asset_type, portfolio) as thread_id_value:
             return self._run_graph(
                 company_name,
                 trade_date,
@@ -594,6 +364,26 @@ class TradingAgentsGraph:
                 self._run_signature(asset_type, portfolio),
             )
 
+    def run_settings(self) -> dict:
+        """What produces this graph's runs, for the saved report and state log.
+
+        An allowlist: endpoints (a backend_url can carry credentials), keys and
+        local paths are never recorded.
+        """
+        cfg = self.config
+        return {
+            "version": tradingagents.__version__,
+            "llm_provider": cfg.get("llm_provider"),
+            "deep_think_llm": cfg.get("deep_think_llm"),
+            "quick_think_llm": cfg.get("quick_think_llm"),
+            "analysts": list(self.selected_analysts),
+            "max_debate_rounds": cfg.get("max_debate_rounds"),
+            "max_risk_discuss_rounds": cfg.get("max_risk_discuss_rounds"),
+            "output_language": cfg.get("output_language"),
+            "data_vendors": dict(cfg.get("data_vendors") or {}),
+            "tool_vendors": dict(cfg.get("tool_vendors") or {}),
+        }
+
     def save_reports(self, final_state, ticker, save_path=None) -> Path:
         """Write the markdown report tree for a completed run, like the CLI does.
 
@@ -601,13 +391,13 @@ class TradingAgentsGraph:
         an explicit ``save_path`` or let it default under ``results_dir``.
         """
         if save_path is None:
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            save_path = (
-                Path(self.config["results_dir"])
-                / "reports"
-                / f"{safe_ticker_component(ticker)}_{stamp}"
-            )
-        return write_report_tree(final_state, ticker, save_path)
+            save_path = self.default_report_path(ticker)
+        return write_report_tree(final_state, ticker, save_path, settings=self.run_settings())
+
+    def default_report_path(self, ticker) -> Path:
+        """Where a run's reports go unless told otherwise: under results_dir, stamped now."""
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return Path(self.config["results_dir"]) / "reports" / f"{safe_ticker_component(ticker)}_{stamp}"
 
     def create_run_state(self, company_name, trade_date, asset_type: str = "stock", portfolio=None):
         """Build a run's initial state; propagate() and the CLI both start here.
@@ -615,9 +405,9 @@ class TradingAgentsGraph:
         Settles this ticker's pending decisions first, then injects the lessons
         known by the trade date for the Portfolio Manager (#1251) and the
         resolved instrument identity for every agent (#814). An entry point that
-        assembled the state itself would skip the decision log.
+        assembled the state itself would skip the memory log.
         """
-        self._resolve_pending_entries(company_name)
+        self.settle_pending(company_name)
         return self.propagator.create_initial_state(
             company_name,
             trade_date,
@@ -639,10 +429,13 @@ class TradingAgentsGraph:
         that is done analyzing a ticker (a backtest sweep, a scheduled job) calls
         this to settle it now.
         """
-        self._resolve_pending_entries(company_name)
+        with run_config(self.config):
+            settlement.settle_pending(company_name, self.memory_log, self.reflector, self.config)
 
     def record_decision(self, company_name, trade_date, final_state):
-        """Log a finished run's decision for reflection on the next same-ticker run."""
+        """Record a finished run: its state log, and its decision in the memory log
+        for reflection on the next same-ticker run. propagate() and the CLI both end here."""
+        self._log_state(trade_date, final_state)
         decision = final_state.get("final_trade_decision")
         if not decision:
             logger.warning(
@@ -650,7 +443,8 @@ class TradingAgentsGraph:
             )
             return
         self.memory_log.store_decision(
-            ticker=company_name, trade_date=trade_date, final_trade_decision=decision
+            ticker=company_name, trade_date=trade_date, final_trade_decision=decision,
+            rating=run_rating(final_state),
         )
 
     def _run_graph(
@@ -675,43 +469,61 @@ class TradingAgentsGraph:
         # None resumes an existing checkpoint; init_agent_state starts fresh (#1249).
         graph_input = self.checkpoint_input(init_agent_state)
         if self.debug:
-            trace = []
-            last_printed = None
-            for chunk in self.graph.stream(graph_input, **args):
-                if chunk["messages"]:
-                    msg = chunk["messages"][-1]
-                    # Nodes after the trader don't append to messages, so the
-                    # same trailing message repeats across chunks. Print it only
-                    # when it changes (#1027); the trace/state merge is unchanged.
-                    signature = (type(msg).__name__, getattr(msg, "content", None))
-                    if signature != last_printed:
+            # A state repeats the messages before it, so each prints once (#1027).
+            final_state, printed = {}, set()
+            for messages, state in self.stream_run(graph_input, **args):
+                for msg in messages:
+                    key = getattr(msg, "id", None) or (type(msg).__name__, getattr(msg, "content", None))
+                    if key not in printed:
+                        printed.add(key)
                         msg.pretty_print()
-                        last_printed = signature
-                    trace.append(chunk)
-            # Streamed chunks are per-node deltas. Merge them so the returned
-            # state matches what graph.invoke() yields in the non-debug path.
-            final_state = {}
-            for chunk in trace:
-                final_state.update(chunk)
+                if state is not None:
+                    final_state.update(state)
         else:
             final_state = self.graph.invoke(graph_input, **args)
 
-        # Store current state for reflection.
-        self.curr_state = final_state
-
-        # Log state to disk.
-        self._log_state(trade_date, final_state)
-
+        final_state["final_rating"] = run_rating(final_state)
         self.record_decision(company_name, trade_date, final_state)
 
         # Clear checkpoint on successful completion to avoid stale state.
         self.clear_checkpoint_on_success(company_name, trade_date, asset_type, portfolio)
 
-        return final_state, self.process_signal(final_state["final_trade_decision"])
+        return final_state, run_rating(final_state)
+
+    def stream_run(self, graph_input, **args):
+        """Stream a run as ``(messages, state)`` pairs.
+
+        ``messages`` are the agents' messages, the analysts' included. ``state``
+        is the run's state after a top-level step; for a step inside an analyst's
+        graph it is that analyst's report once filed, else None.
+
+        Each analyst works in a graph of its own, and the run's state takes the
+        analysts' reports only when the slowest has finished, so their messages
+        and reports come from their own finished steps ("tasks") as they happen.
+        """
+        args = {**args, "stream_mode": ["values", "tasks"]}
+        # The graph's own config serves every tool call, as in propagate(), even
+        # when the process-wide config has changed since. Each step runs in the
+        # run's context, so the caller keeps its own between steps.
+        context = run_config_context(self.config)
+        stream = context.run(self.graph.stream, graph_input, subgraphs=True, **args)
+        try:
+            while (step := context.run(next, stream, None)) is not None:
+                namespace, mode, chunk = step
+                if namespace:
+                    result = chunk.get("result") if mode == "tasks" else None
+                    if isinstance(result, dict):
+                        report = {k: v for k, v in result.items() if k != "messages" and v}
+                        if result.get("messages") or report:
+                            yield result.get("messages", []), report or None
+                elif mode == "values":
+                    yield chunk.get("messages", []), chunk
+        finally:
+            context.run(stream.close)
 
     def _log_state(self, trade_date, final_state):
-        """Log the final state to a JSON file."""
-        self.log_states_dict[str(trade_date)] = {
+        """Write a run's final state to JSON under the run's own ticker."""
+        entry = {
             "company_of_interest": final_state["company_of_interest"],
             "trade_date": final_state["trade_date"],
             "market_report": final_state["market_report"],
@@ -723,31 +535,26 @@ class TradingAgentsGraph:
                 "bear_history": final_state["investment_debate_state"]["bear_history"],
                 "history": final_state["investment_debate_state"]["history"],
                 "current_response": final_state["investment_debate_state"]["current_response"],
-                "judge_decision": final_state["investment_debate_state"]["judge_decision"],
             },
-            "trader_investment_decision": final_state["trader_investment_plan"],
+            "trader_investment_plan": final_state["trader_investment_plan"],
             "risk_debate_state": {
                 "aggressive_history": final_state["risk_debate_state"]["aggressive_history"],
                 "conservative_history": final_state["risk_debate_state"]["conservative_history"],
                 "neutral_history": final_state["risk_debate_state"]["neutral_history"],
                 "history": final_state["risk_debate_state"]["history"],
-                "judge_decision": final_state["risk_debate_state"]["judge_decision"],
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "final_rating": run_rating(final_state),
+            "run_settings": self.run_settings(),
         }
 
-        # Save to file. Reject ticker values that would escape the
-        # results directory when joined as a path component.
-        safe_ticker = safe_ticker_component(self.ticker)
+        # A ticker that would escape the results directory is rejected.
+        safe_ticker = safe_ticker_component(final_state["company_of_interest"])
         directory = Path(self.config["results_dir"]) / safe_ticker / "TradingAgentsStrategy_logs"
         directory.mkdir(parents=True, exist_ok=True)
 
         log_path = directory / f"full_states_log_{trade_date}.json"
         with open(log_path, "w", encoding="utf-8") as f:
             # Reports can be in any language and this file is read by a person.
-            json.dump(self.log_states_dict[str(trade_date)], f, indent=4, ensure_ascii=False)
-
-    def process_signal(self, full_signal):
-        """Process a signal to extract the core decision."""
-        return self.signal_processor.process_signal(full_signal)
+            json.dump(entry, f, indent=4, ensure_ascii=False)

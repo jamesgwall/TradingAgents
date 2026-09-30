@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tradingagents.dataflows import alpha_vantage_fundamentals, y_finance
+from tradingagents.dataflows.vendors.alpha_vantage import fundamentals as alpha_vantage_fundamentals
+from tradingagents.dataflows.vendors.yahoo import fundamentals as y_finance
 
 
 @pytest.mark.unit

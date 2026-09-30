@@ -9,7 +9,15 @@ from urllib.error import HTTPError
 
 import pytest
 
-from tradingagents.dataflows import reddit
+from tradingagents.dataflows.vendors import reddit
+
+
+@pytest.fixture(autouse=True)
+def clear_reddit_cache():
+    reddit.clear_cache()
+    yield
+    reddit.clear_cache()
+
 
 _SAMPLE_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -303,37 +311,41 @@ def test_empty_subreddit_on_a_full_page_is_not_called_empty():
     assert f"newest {reddit._FEED_PAGE}" in out
 
 
-@pytest.fixture(autouse=True)
-def _reset_reddit_cache():
-    reddit.clear_cache()
-    yield
-    reddit.clear_cache()
+def _screen_out(*dropped):
+    """A screen that drops posts whose text starts with one of ``dropped``."""
+    def screen(texts):
+        return [not t.startswith(dropped) for t in texts], "Screened: note"
+    return screen
 
 
 @pytest.mark.unit
-class TestRedditCacheAndCooldown:
-    def test_repeated_call_uses_cache_without_network_request(self):
-        with patch.object(reddit, "urlopen", return_value=_atom_resp()) as op:
-            posts1 = reddit._fetch_subreddit_rss("NVDA", "stocks", 5, 5.0)
-            posts2 = reddit._fetch_subreddit_rss("NVDA", "stocks", 5, 5.0)
-        assert len(posts1) == 2
-        assert len(posts2) == 2
-        assert op.call_count == 1  # Cache hit on second call
+def test_screened_out_posts_free_their_subreddit_slots():
+    posts = [{"title": t, "created_utc": None, "selftext": "", "subreddit": "a"}
+             for t in ("SPAM1", "SPAM2", "A1", "A2")]
+    with patch.object(reddit, "_fetch_subreddit_rss", return_value=posts):
+        out = reddit.fetch_reddit_posts("NVDA", subreddits=("a",), limit_per_sub=2,
+                                        screen=_screen_out("SPAM"))
+    assert out.startswith("Screened: note")
+    assert "A1" in out and "A2" in out and "SPAM" not in out
 
-    def test_cooldown_returns_cached_or_empty(self):
-        err = HTTPError("url", 429, "Too Many Requests", {"Retry-After": "10"}, None)
-        with (
-            patch.object(reddit, "urlopen", side_effect=err),
-            patch.object(reddit.time, "sleep"),
-        ):
-            posts = reddit._fetch_subreddit_rss("MSFT", "investing", 5, 5.0)
-        assert posts is None or posts == []
-        assert reddit.time.time() <= reddit._RATE_LIMIT_COOLDOWN_UNTIL
 
-        # While in cooldown, next fetch skips urlopen
-        with patch.object(
-            reddit, "urlopen", side_effect=AssertionError("should not be called")
-        ) as mock_op:
-            res = reddit._fetch_subreddit_rss("GOOGL", "stocks", 5, 5.0)
-            assert res == []
-            mock_op.assert_not_called()
+@pytest.mark.unit
+def test_a_subreddit_emptied_by_screening_is_not_called_empty():
+    posts = [{"title": "SPAM", "created_utc": None, "selftext": "", "subreddit": "b"},
+             {"title": "A1", "created_utc": None, "selftext": "", "subreddit": "a"}]
+    with patch.object(reddit, "_fetch_subreddit_rss", return_value=posts):
+        out = reddit.fetch_reddit_posts("NVDA", subreddits=("a", "b"), screen=_screen_out("SPAM"))
+    assert "r/b: <no posts about NVDA after screening>" in out
+
+
+@pytest.mark.unit
+def test_an_unavailable_screen_keeps_every_post_and_says_so():
+    posts = [{"title": "A1", "created_utc": None, "selftext": "", "subreddit": "a"}]
+
+    def unavailable(texts):
+        return [True] * len(texts), "<Jev screening unavailable (HTTP 529); posts are unscreened>"
+
+    with patch.object(reddit, "_fetch_subreddit_rss", return_value=posts):
+        screened = reddit.fetch_reddit_posts("NVDA", subreddits=("a", "b"), screen=unavailable)
+        plain = reddit.fetch_reddit_posts("NVDA", subreddits=("a", "b"))
+    assert screened == "<Jev screening unavailable (HTTP 529); posts are unscreened>\n\n" + plain

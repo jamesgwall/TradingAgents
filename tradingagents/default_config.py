@@ -14,24 +14,22 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # Use the per-tier config keys directly (or a future per-tier env var) when
 # the two tiers need different providers.
 _ENV_OVERRIDES = {
-    "TRADINGAGENTS_LLM_PROVIDER": ("llm_provider", "quick_llm_provider", "deep_llm_provider"),
-    "TRADINGAGENTS_LLM_BACKEND_URL": ("backend_url", "quick_backend_url", "deep_backend_url"),
-    "TRADINGAGENTS_DEEP_THINK_LLM": "deep_think_llm",
-    "TRADINGAGENTS_QUICK_THINK_LLM": "quick_think_llm",
-    # Optional third "reasoning" tier for the debate nodes (see DEFAULT_CONFIG).
-    # Unlike the convenience vars above these are per-tier on purpose: the
-    # reasoning tier is opt-in and falls back to quick when left unset.
+    "TRADINGAGENTS_LLM_PROVIDER":         ("llm_provider", "quick_llm_provider", "deep_llm_provider"),
+    "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
+    "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
+    "TRADINGAGENTS_LLM_BACKEND_URL":      ("backend_url", "quick_backend_url", "deep_backend_url"),
     "TRADINGAGENTS_REASONING_LLM_PROVIDER": "reasoning_llm_provider",
     "TRADINGAGENTS_REASONING_LLM_BACKEND_URL": "reasoning_backend_url",
     "TRADINGAGENTS_REASONING_THINK_LLM": "reasoning_think_llm",
-    "TRADINGAGENTS_OUTPUT_LANGUAGE": "output_language",
-    "TRADINGAGENTS_MAX_DEBATE_ROUNDS": "max_debate_rounds",
-    "TRADINGAGENTS_MAX_RISK_ROUNDS": "max_risk_discuss_rounds",
-    "TRADINGAGENTS_CHECKPOINT_ENABLED": "checkpoint_enabled",
-    "TRADINGAGENTS_BENCHMARK_TICKER": "benchmark_ticker",
-    "TRADINGAGENTS_TEMPERATURE": "temperature",
-    "TRADINGAGENTS_LLM_MAX_RETRIES": "llm_max_retries",
-    "TRADINGAGENTS_MAX_TOKENS": "max_tokens",
+    "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
+    "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
+    "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
+    "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
+    "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
+    "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
+    "TRADINGAGENTS_TEMPERATURE":          "temperature",
+    "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
+    "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
     # Provider-specific reasoning/thinking knobs (None = each provider's own
     # default). Settable here for non-interactive runs; the CLI also offers an
     # interactive choice, which is skipped when the matching var is set.
@@ -44,7 +42,12 @@ _ENV_OVERRIDES = {
 def _coerce(value: str, reference):
     """Coerce env-var string to the type of the existing default value."""
     if isinstance(reference, bool):
-        return value.strip().lower() in ("true", "1", "yes", "on")
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes", "on"):
+            return True
+        if lowered in ("false", "0", "no", "off"):
+            return False
+        raise ValueError(f"invalid boolean value: {value!r}")
     if isinstance(reference, int) and not isinstance(reference, bool):
         return int(value)
     if isinstance(reference, float):
@@ -61,53 +64,52 @@ def _apply_env_overrides(config: dict) -> dict:
         if isinstance(keys, str):
             keys = (keys,)
         for key in keys:
-            config[key] = _coerce(raw, config.get(key))
+            try:
+                config[key] = _coerce(raw, config.get(key))
+            except ValueError as exc:
+                raise ValueError(f"{env_var}: {exc}") from exc
     return config
 
 
-DEFAULT_CONFIG = _apply_env_overrides(
-    {
+def build_default_config() -> dict:
+    """The built-in defaults with the TRADINGAGENTS_* environment folded in.
+
+    Read when the package is imported, as DEFAULT_CONFIG; call it again to see
+    the environment as it is now.
+    """
+    return _apply_env_overrides({
+        "results_dir": os.getenv("TRADINGAGENTS_RESULTS_DIR") or os.path.join(_TRADINGAGENTS_HOME, "logs"),
+        "data_cache_dir": os.getenv("TRADINGAGENTS_CACHE_DIR") or os.path.join(_TRADINGAGENTS_HOME, "cache"),
+        "memory_log_path": os.getenv("TRADINGAGENTS_MEMORY_LOG_PATH") or os.path.join(_TRADINGAGENTS_HOME, "memory", "trading_memory.md"),
         "project_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),
-        "results_dir": os.getenv(
-            "TRADINGAGENTS_RESULTS_DIR", os.path.join(_TRADINGAGENTS_HOME, "logs")
-        ),
-        "data_cache_dir": os.getenv(
-            "TRADINGAGENTS_CACHE_DIR", os.path.join(_TRADINGAGENTS_HOME, "cache")
-        ),
-        "memory_log_path": os.getenv(
-            "TRADINGAGENTS_MEMORY_LOG_PATH",
-            os.path.join(_TRADINGAGENTS_HOME, "memory", "trading_memory.md"),
-        ),
         # Optional cap on the number of resolved memory log entries. When set,
         # the oldest resolved entries are pruned once this limit is exceeded.
         # Pending entries are never pruned. None disables rotation entirely.
         "memory_log_max_entries": None,
-        # LLM settings — per-tier provider/model/URL so quick and deep can use different providers
+        # LLM settings
         "llm_provider": "openai",
-        "backend_url": None,
         "quick_llm_provider": "openai",
-        "quick_think_llm": "gpt-5.6-luna",
         "quick_backend_url": None,
-        "quick_provider_kwargs": {},  # e.g. {"reasoning_effort": "low"} for openai
+        "quick_provider_kwargs": {},
         "deep_llm_provider": "openai",
-        "deep_think_llm": "gpt-5.6",
         "deep_backend_url": None,
-        "deep_provider_kwargs": {},  # e.g. {"thinking_level": "high"} for google
-        # Optional third "reasoning" tier for the debate nodes (bull/bear
-        # researchers + the three risk debators). These nodes use no tools, so
-        # they are safe on a text-only subscription backend. When every key
-        # below is unset they fall back to the quick tier, leaving graph
-        # behavior unchanged; point them at the local llm-session-wrapper
-        # (openai_compatible, http://localhost:11500/v1, gemini-3.8-flash-high)
-        # to offload debate compute off the laptop (milestone B2).
+        "deep_provider_kwargs": {},
         "reasoning_llm_provider": None,
         "reasoning_think_llm": None,
         "reasoning_backend_url": None,
         "reasoning_provider_kwargs": {},
-        # Provider-specific thinking configuration (also storable in quick/deep_provider_kwargs)
-        "google_thinking_level": None,  # "high", "minimal", etc.
-        "openai_reasoning_effort": None,  # "medium", "high", "low"
-        "anthropic_effort": None,  # "high", "medium", "low"
+        "deep_think_llm": "gpt-6-sol",
+        "quick_think_llm": "gpt-6-luna",
+        # When None, each provider's client falls back to its own default endpoint
+        # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
+        # The CLI overrides this per provider when the user picks one. Keeping a
+        # provider-specific URL here would leak (e.g. OpenAI's /v1 was previously
+        # being forwarded to Gemini, producing malformed request URLs).
+        "backend_url": None,
+        # Provider-specific thinking configuration
+        "google_thinking_level": None,      # "high", "minimal", etc.
+        "openai_reasoning_effort": None,    # "medium", "high", "low"
+        "anthropic_effort": None,           # "high", "medium", "low"
         # Sampling temperature, forwarded to every provider when set. None leaves
         # each provider at its own default. Lower values reduce run-to-run
         # variation on models that honor it; reasoning models largely ignore it
@@ -132,13 +134,15 @@ DEFAULT_CONFIG = _apply_env_overrides(
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,
         "max_recur_limit": 100,
+        # Rounds of tool calls an analyst may make before it is asked for its report.
+        "max_tool_rounds": 20,
         "analyst_concurrency_limit": 1,
         # News / data fetching parameters
         # Increase for longer lookback strategies or to broaden macro coverage;
         # decrease to reduce token usage in agent prompts.
-        "news_article_limit": 20,  # max articles per ticker (ticker-news)
-        "global_news_article_limit": 10,  # max articles for global/macro news
-        "global_news_lookback_days": 7,  # macro news lookback window
+        "news_article_limit": 20,             # max articles per ticker (ticker-news)
+        "global_news_article_limit": 10,      # max articles for global/macro news
+        "global_news_lookback_days": 7,       # macro news lookback window
         # Search queries used by get_global_news for macro headlines. Extend or
         # replace to broaden geographic / sector coverage.
         "global_news_queries": [
@@ -154,11 +158,13 @@ DEFAULT_CONFIG = _apply_env_overrides(
         # routed to vendors you didn't choose. For ordered fallback, list several,
         # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
         "data_vendors": {
-            "core_stock_apis": "yfinance",  # Options: alpha_vantage, yfinance
+            "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
             "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-            "fundamental_data": "yfinance",  # Options: alpha_vantage, yfinance
-            "news_data": "yfinance",  # Options: alpha_vantage, yfinance
-            "macro_data": "fred",  # Options: fred (needs FRED_API_KEY)
+            # Statements come from SEC EDGAR as filed (US filers), then Yahoo; the
+        # overview and insider tools, which SEC EDGAR does not serve, from Yahoo.
+        "fundamental_data": "sec_edgar,yfinance",  # Options: sec_edgar, alpha_vantage, yfinance
+            "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+            "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
         },
         # Tool-level configuration (takes precedence over category-level)
@@ -176,16 +182,30 @@ DEFAULT_CONFIG = _apply_env_overrides(
         "holding_period_days": 5,
         "benchmark_ticker": None,
         "benchmark_map": {
-            ".NS": "^NSEI",  # NSE India (Nifty 50)
-            ".BO": "^BSESN",  # BSE India (Sensex)
-            ".T": "^N225",  # Tokyo (Nikkei 225)
-            ".HK": "^HSI",  # Hong Kong (Hang Seng)
-            ".L": "^FTSE",  # London (FTSE 100)
-            ".TO": "^GSPTSE",  # Toronto (TSX Composite)
-            ".AX": "^AXJO",  # Australia (ASX 200)
-            ".SS": "000001.SS",  # Shanghai (SSE Composite)
-            ".SZ": "399001.SZ",  # Shenzhen (SZSE Component)
-            "": "SPY",  # default for US-listed tickers (no suffix)
+            ".NS":  "^NSEI",       # NSE India (Nifty 50)
+            ".BO":  "^BSESN",      # BSE India (Sensex)
+            ".T":   "^N225",       # Tokyo (Nikkei 225)
+            ".TW":  "^TWII",       # Taiwan (TAIEX)
+            ".TWO": "^TWII",       # Taipei OTC (TPEx has no Yahoo index; TAIEX)
+            ".KS":  "^KS11",       # Korea (KOSPI)
+            ".KQ":  "^KQ11",       # Korea (KOSDAQ)
+            ".HK":  "^HSI",        # Hong Kong (Hang Seng)
+            ".SI":  "^STI",        # Singapore (Straits Times)
+            ".L":   "^FTSE",       # London (FTSE 100)
+            ".DE":  "^GDAXI",      # Germany (DAX)
+            ".PA":  "^FCHI",       # Paris (CAC 40)
+            ".AS":  "^AEX",        # Amsterdam (AEX)
+            ".SW":  "^SSMI",       # Switzerland (SMI)
+            ".MI":  "FTSEMIB.MI",  # Milan (FTSE MIB)
+            ".TO":  "^GSPTSE",     # Toronto (TSX Composite)
+            ".AX":  "^AXJO",       # Australia (ASX 200)
+            ".SS":  "000001.SS",   # Shanghai (SSE Composite)
+            ".SZ":  "399001.SZ",   # Shenzhen (SZSE Component)
+            ".SA":  "^BVSP",       # B3 Brazil (Ibovespa)
+            "":     "SPY",         # default for US-listed tickers (no suffix)
         },
-    }
-)
+
+    })
+
+
+DEFAULT_CONFIG = build_default_config()
