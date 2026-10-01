@@ -19,6 +19,7 @@ def test_qwen_embedding_request(monkeypatch):
             return json.dumps({"embeddings": [[0.0] * 1024]}).encode()
 
     def fake_urlopen(request, timeout):
+        assert timeout == 1200
         requests.append(json.loads(request.data))
         return Response()
 
@@ -30,3 +31,28 @@ def test_qwen_embedding_request(monkeypatch):
         "dimensions": 1024,
         "options": {"num_ctx": 4096},
     }]
+
+
+def test_qwen_embedding_retries_model_swap_timeout(monkeypatch):
+    calls = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def read(self):
+            return json.dumps({"embeddings": [[0.0] * 1024]}).encode()
+
+    def fake_urlopen(request, timeout):
+        calls.append(timeout)
+        if len(calls) == 1:
+            raise TimeoutError("Ollama is swapping models")
+        return Response()
+
+    monkeypatch.setattr(transcript_store.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(transcript_store.time, "sleep", lambda _: None)
+    assert len(transcript_store._embed_text("macro outlook", "http://localhost:11434")) == 1024
+    assert calls == [1200, 1200]

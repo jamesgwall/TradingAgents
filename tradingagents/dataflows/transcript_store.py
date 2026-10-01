@@ -19,11 +19,16 @@ Env vars (all optional — defaults shown):
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
+import urllib.error
 import urllib.request
 
 EMBED_MODEL = "qwen3-embedding:latest"
 EMBED_DIM = 1024
+EMBED_TIMEOUT_SECONDS = 1200
+EMBED_MAX_ATTEMPTS = 2
 MACRO_WINDOW_DAYS = 30
 DEFAULT_TOP_K = 8
 
@@ -40,8 +45,21 @@ def _embed_text(text: str, ollama_url: str) -> list[float]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=600) as resp:
-        data = json.loads(resp.read())
+    for attempt in range(EMBED_MAX_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(req, timeout=EMBED_TIMEOUT_SECONDS) as resp:
+                data = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as err:
+            if err.code not in (429, 500, 502, 503, 504) or attempt + 1 == EMBED_MAX_ATTEMPTS:
+                raise
+        except (TimeoutError, urllib.error.URLError):
+            if attempt + 1 == EMBED_MAX_ATTEMPTS:
+                raise
+        logging.getLogger(__name__).warning(
+            "Qwen embedding request is waiting for Ollama model swap; retrying"
+        )
+        time.sleep(5)
     if "embeddings" not in data:
         raise RuntimeError(f"Ollama embed response missing 'embeddings': {data}")
     embedding = data["embeddings"][0]
