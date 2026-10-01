@@ -30,14 +30,17 @@ DEFAULT_TOP_K = 8
 
 def _embed_text(text: str, ollama_url: str) -> list[float]:
     base = ollama_url.rstrip("/")
-    payload = json.dumps({"model": EMBED_MODEL, "input": [text], "dimensions": EMBED_DIM}).encode()
+    payload = json.dumps({
+        "model": EMBED_MODEL, "input": [text], "dimensions": EMBED_DIM,
+        "options": {"num_ctx": 4096},
+    }).encode()
     req = urllib.request.Request(
         f"{base}/api/embed",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=600) as resp:
         data = json.loads(resp.read())
     if "embeddings" not in data:
         raise RuntimeError(f"Ollama embed response missing 'embeddings': {data}")

@@ -28,4 +28,5 @@ def test_qwen_embedding_request(monkeypatch):
         "model": "qwen3-embedding:latest",
         "input": ["AAPL macro outlook"],
         "dimensions": 1024,
+        "options": {"num_ctx": 4096},
     }]
