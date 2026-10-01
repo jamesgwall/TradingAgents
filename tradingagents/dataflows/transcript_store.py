@@ -19,28 +19,53 @@ Env vars (all optional — defaults shown):
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
+import urllib.error
 import urllib.request
 
-EMBED_MODEL = "nomic-embed-text"
+EMBED_MODEL = "qwen3-embedding:latest"
+EMBED_DIM = 1024
+EMBED_TIMEOUT_SECONDS = 1200
+EMBED_MAX_ATTEMPTS = 2
 MACRO_WINDOW_DAYS = 30
 DEFAULT_TOP_K = 8
 
 
 def _embed_text(text: str, ollama_url: str) -> list[float]:
     base = ollama_url.rstrip("/")
-    payload = json.dumps({"model": EMBED_MODEL, "input": [text]}).encode()
+    payload = json.dumps({
+        "model": EMBED_MODEL, "input": [text], "dimensions": EMBED_DIM,
+        "options": {"num_ctx": 4096},
+    }).encode()
     req = urllib.request.Request(
         f"{base}/api/embed",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
+    for attempt in range(EMBED_MAX_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(req, timeout=EMBED_TIMEOUT_SECONDS) as resp:
+                data = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as err:
+            if err.code not in (429, 500, 502, 503, 504) or attempt + 1 == EMBED_MAX_ATTEMPTS:
+                raise
+        except (TimeoutError, urllib.error.URLError):
+            if attempt + 1 == EMBED_MAX_ATTEMPTS:
+                raise
+        logging.getLogger(__name__).warning(
+            "Qwen embedding request is waiting for Ollama model swap; retrying"
+        )
+        time.sleep(5)
     if "embeddings" not in data:
         raise RuntimeError(f"Ollama embed response missing 'embeddings': {data}")
-    return data["embeddings"][0]
+    embedding = data["embeddings"][0]
+    if len(embedding) != EMBED_DIM:
+        raise RuntimeError(f"Ollama returned {len(embedding)} dimensions; expected {EMBED_DIM}")
+    return embedding
 
 
 def _open_conn():

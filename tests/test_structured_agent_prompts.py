@@ -19,8 +19,8 @@ import pytest
 import tradingagents.agents.analysts.sentiment_analyst as sentiment
 from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
 from tradingagents.agents.managers.research_manager import create_research_manager
+from tradingagents.agents.structured import NO_EXTERNAL_TOOLS
 from tradingagents.agents.trader.trader import create_trader
-from tradingagents.agents.utils.structured import NO_EXTERNAL_TOOLS
 
 
 def _capturing_llm(captured: dict, result):
@@ -80,6 +80,13 @@ def test_research_manager_prompt_states_constraint():
             },
         }
     )
+    create_research_manager(llm)({
+        "company_of_interest": "NVDA",
+        "investment_debate_state": {
+            "history": "h", "bull_history": "b", "bear_history": "r",
+            "current_response": "", "count": 1,
+        },
+    })
     assert NO_EXTERNAL_TOOLS in _prompt_text(captured["prompt"])
 
 

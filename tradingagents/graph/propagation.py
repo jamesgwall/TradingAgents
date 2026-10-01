@@ -1,11 +1,6 @@
-# TradingAgents/graph/propagation.py
-
 from typing import Any
 
-from tradingagents.agents.utils.agent_states import (
-    InvestDebateState,
-    RiskDebateState,
-)
+from tradingagents.agents.state import InvestDebateState, RiskDebateState
 
 
 class Propagator:
@@ -46,7 +41,6 @@ class Propagator:
                     "bear_history": "",
                     "history": "",
                     "current_response": "",
-                    "judge_decision": "",
                     "count": 0,
                 }
             ),
@@ -60,7 +54,6 @@ class Propagator:
                     "current_aggressive_response": "",
                     "current_conservative_response": "",
                     "current_neutral_response": "",
-                    "judge_decision": "",
                     "count": 0,
                 }
             ),

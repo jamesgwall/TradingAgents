@@ -28,7 +28,7 @@ _STORE_PATH = "tradingagents.dataflows.transcript_store.TranscriptStore"
 
 
 def _chunks(n: int = 3) -> list[dict]:
-    pub = datetime.datetime(2026, 5, 1, tzinfo=datetime.timezone.utc)
+    pub = datetime.datetime(2026, 5, 1, tzinfo=datetime.UTC)
     return [
         {
             "video_id": f"vid{i}",

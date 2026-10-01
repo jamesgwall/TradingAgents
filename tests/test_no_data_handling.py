@@ -14,9 +14,11 @@ from unittest import mock
 import pandas as pd
 import pytest
 
-from tradingagents.dataflows import interface, stockstats_utils
+from tradingagents.dataflows import router
 from tradingagents.dataflows.config import set_config
-from tradingagents.dataflows.symbol_utils import NoMarketDataError
+from tradingagents.dataflows.date_window import get_current_date
+from tradingagents.dataflows.errors import NoMarketDataError
+from tradingagents.dataflows.vendors.yahoo import common, ohlcv
 
 
 @pytest.mark.unit
@@ -32,19 +34,21 @@ class TestLoadOhlcvNoPoison(unittest.TestCase):
         os.rmdir(self._tmp)
 
     def test_empty_download_raises_and_does_not_cache(self):
-        empty = pd.DataFrame()
-        with (
-            mock.patch.object(stockstats_utils.yf, "download", return_value=empty),
-            self.assertRaises(NoMarketDataError),
-        ):
-            stockstats_utils.load_ohlcv("FAKE", "2026-01-01")
+        empty = mock.Mock(history=mock.Mock(return_value=pd.DataFrame()))
+        # Yahoo answers, so an empty download means the symbol has no data.
+        reachable = mock.patch.object(common, "vendor_reachable", return_value=True)
+        reachable.start()
+        self.addCleanup(reachable.stop)
+        with mock.patch.object(ohlcv.yf, "Ticker", return_value=empty), \
+                self.assertRaises(NoMarketDataError):
+            ohlcv.load_ohlcv("FAKE", "2026-01-01")
         # Nothing should have been written to the cache.
         self.assertEqual(os.listdir(self._tmp), [])
 
         # A second call must re-attempt the fetch (no poisoned cache served).
-        with mock.patch.object(stockstats_utils.yf, "download", return_value=empty) as dl2:
+        with mock.patch.object(ohlcv.yf, "Ticker", return_value=empty) as dl2:
             with self.assertRaises(NoMarketDataError):
-                stockstats_utils.load_ohlcv("FAKE", "2026-01-01")
+                ohlcv.load_ohlcv("FAKE", "2026-01-01")
             self.assertTrue(dl2.called)
 
 
@@ -55,8 +59,10 @@ class TestRouteToVendorSentinel(unittest.TestCase):
             raise NoMarketDataError(symbol, "GC=F", "no rows")
 
         patched = {"yfinance": raises_no_data, "alpha_vantage": raises_no_data}
-        with mock.patch.dict(interface.VENDOR_METHODS, {"get_stock_data": patched}, clear=False):
-            result = interface.route_to_vendor(
+        with mock.patch.dict(
+            router.VENDOR_METHODS, {"get_stock_data": patched}, clear=False
+        ):
+            result = router.route_to_vendor(
                 "get_stock_data", "XAUUSD+", "2026-01-01", "2026-01-10"
             )
         self.assertIn("NO_DATA_AVAILABLE", result)
@@ -75,10 +81,26 @@ class TestRouteToVendorSentinel(unittest.TestCase):
             raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
 
         patched = {"yfinance": raises_no_data, "alpha_vantage": raises_unavailable}
-        with mock.patch.dict(interface.VENDOR_METHODS, {"get_stock_data": patched}, clear=False):
-            result = interface.route_to_vendor("get_stock_data", "FAKE", "2026-01-01", "2026-01-10")
+        with mock.patch.dict(
+            router.VENDOR_METHODS, {"get_stock_data": patched}, clear=False
+        ):
+            result = router.route_to_vendor(
+                "get_stock_data", "FAKE", "2026-01-01", "2026-01-10"
+            )
         self.assertIn("NO_DATA_AVAILABLE", result)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pytest.mark.unit
+def test_an_unreachable_yahoo_is_not_reported_as_a_symbol_without_insider_data():
+    from tradingagents.dataflows.errors import VendorUnavailableError
+    from tradingagents.dataflows.vendors.yahoo import fundamentals
+
+    ticker = type("T", (), {"insider_transactions": pd.DataFrame()})()
+    with mock.patch.object(fundamentals.yf, "Ticker", return_value=ticker), \
+         mock.patch.object(fundamentals, "vendor_reachable", return_value=False), \
+         pytest.raises(VendorUnavailableError):
+        fundamentals.get_insider_transactions("AAPL", as_of_date=get_current_date())

@@ -74,38 +74,16 @@ def test_a_report_that_was_never_produced_says_so(module, factory):
             raise NotImplementedError
 
     state = {
-        "company_of_interest": "NVDA",
-        "trade_date": "2026-08-14",
-        "asset_type": "stock",
-        "instrument_context": "",
-        "portfolio_context": "",
-        "past_context": "",
-        "market_report": "RSI 61, price 178.",
-        "sentiment_report": "",
-        "news_report": "",
-        "fundamentals_report": "",
-        "investment_plan": "P",
-        "trader_investment_plan": "T",
-        "investment_debate_state": {
-            "bull_history": "",
-            "bear_history": "",
-            "history": "",
-            "current_response": "",
-            "judge_decision": "",
-            "count": 0,
-        },
-        "risk_debate_state": {
-            "history": "",
-            "latest_speaker": "",
-            "count": 0,
-            "aggressive_history": "",
-            "conservative_history": "",
-            "neutral_history": "",
-            "current_aggressive_response": "",
-            "current_conservative_response": "",
-            "current_neutral_response": "",
-            "judge_decision": "",
-        },
+        "company_of_interest": "NVDA", "trade_date": "2026-08-14", "asset_type": "stock",
+        "instrument_context": "", "portfolio_context": "", "past_context": "",
+        "market_report": "RSI 61, price 178.", "sentiment_report": "", "news_report": "",
+        "fundamentals_report": "", "investment_plan": "P", "trader_investment_plan": "T",
+        "investment_debate_state": {"bull_history": "", "bear_history": "", "history": "",
+                                    "current_response": "", "count": 0},
+        "risk_debate_state": {"history": "", "latest_speaker": "", "count": 0,
+                              "aggressive_history": "", "conservative_history": "", "neutral_history": "",
+                              "current_aggressive_response": "", "current_conservative_response": "",
+                              "current_neutral_response": ""},
     }
     getattr(mod, factory)(_LLM())(state)
 
