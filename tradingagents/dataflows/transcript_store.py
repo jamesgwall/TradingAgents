@@ -22,14 +22,15 @@ import json
 import os
 import urllib.request
 
-EMBED_MODEL = "nomic-embed-text"
+EMBED_MODEL = "qwen3-embedding:latest"
+EMBED_DIM = 1024
 MACRO_WINDOW_DAYS = 30
 DEFAULT_TOP_K = 8
 
 
 def _embed_text(text: str, ollama_url: str) -> list[float]:
     base = ollama_url.rstrip("/")
-    payload = json.dumps({"model": EMBED_MODEL, "input": [text]}).encode()
+    payload = json.dumps({"model": EMBED_MODEL, "input": [text], "dimensions": EMBED_DIM}).encode()
     req = urllib.request.Request(
         f"{base}/api/embed",
         data=payload,
@@ -40,7 +41,10 @@ def _embed_text(text: str, ollama_url: str) -> list[float]:
         data = json.loads(resp.read())
     if "embeddings" not in data:
         raise RuntimeError(f"Ollama embed response missing 'embeddings': {data}")
-    return data["embeddings"][0]
+    embedding = data["embeddings"][0]
+    if len(embedding) != EMBED_DIM:
+        raise RuntimeError(f"Ollama returned {len(embedding)} dimensions; expected {EMBED_DIM}")
+    return embedding
 
 
 def _open_conn():
