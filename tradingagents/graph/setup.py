@@ -79,9 +79,15 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
         return "wrap_up" if rounds(state["messages"]) >= max_tool_rounds else "agent"
 
     def wrap_up(state):
-        repeated = ", ".join(f"{name} x{n}" for name, n in Counter(calls(state["messages"])).most_common())
-        logger.warning("%s used its %d tool rounds (%s); asking for its report",
-                       spec.agent_node, max_tool_rounds, repeated)
+        repeated = ", ".join(
+            f"{name} x{n}" for name, n in Counter(calls(state["messages"])).most_common()
+        )
+        logger.warning(
+            "%s used its %d tool rounds (%s); asking for its report",
+            spec.agent_node,
+            max_tool_rounds,
+            repeated,
+        )
         return agent({**state, "messages": [*state["messages"], HumanMessage(WRAP_UP)]})
 
     graph.add_node("tools", ToolNode(list(spec.tools)))
@@ -114,7 +120,9 @@ class GraphSetup:
         self.max_tool_rounds = max_tool_rounds
         self.analyst_concurrency_limit = analyst_concurrency_limit
 
-    def setup_graph(self, selected_analysts=("market", "social", "news", "fundamentals")):
+    def setup_graph(
+        self, selected_analysts=("market", "social", "news", "fundamentals"), memory_node=None
+    ):
         """Set up and compile the agent workflow graph.
 
         Args:
@@ -123,6 +131,8 @@ class GraphSetup:
                 - "social": Sentiment analyst
                 - "news": News analyst
                 - "fundamentals": Fundamentals analyst
+            memory_node: Node that settles past decisions and returns the run's
+                ``past_context``. It runs alongside the analysts.
         """
         plan = build_analyst_execution_plan(
             selected_analysts, concurrency_limit=self.analyst_concurrency_limit
@@ -154,8 +164,10 @@ class GraphSetup:
         workflow = StateGraph(AgentState)
 
         for spec in plan.specs:
-            workflow.add_node(spec.agent_node,
-                              _analyst_graph(spec, analyst_factories[spec.key](), self.max_tool_rounds))
+            workflow.add_node(
+                spec.agent_node,
+                _analyst_graph(spec, analyst_factories[spec.key](), self.max_tool_rounds),
+            )
 
         workflow.add_node("Bull Researcher", bull_researcher_node)
         workflow.add_node("Bear Researcher", bear_researcher_node)
@@ -167,11 +179,15 @@ class GraphSetup:
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
 
         # The analysts work at the same time; the research debate starts once
-        # every one of them has filed its report.
-        analysts = [spec.agent_node for spec in plan.specs]
-        for node in analysts:
+        # every one of them has filed its report. The memory log settles past
+        # decisions alongside them: only the Portfolio Manager reads its lessons.
+        first_steps = [spec.agent_node for spec in plan.specs]
+        if memory_node is not None:
+            workflow.add_node("Memory Log", memory_node)
+            first_steps.append("Memory Log")
+        for node in first_steps:
             workflow.add_edge(START, node)
-        workflow.add_edge(analysts, "Bull Researcher")
+        workflow.add_edge(first_steps, "Bull Researcher")
 
         # Both research-debate edges share the complete DEBATE_PATH_MAP (#1088).
         for debate_node in ("Bull Researcher", "Bear Researcher"):
