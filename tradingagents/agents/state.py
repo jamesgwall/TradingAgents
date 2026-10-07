@@ -16,24 +16,16 @@ class InvestDebateState(TypedDict):
 
 # Risk management team state
 class RiskDebateState(TypedDict):
-    aggressive_history: Annotated[
-        str, "Aggressive Agent's Conversation history"
-    ]
+    aggressive_history: Annotated[str, "Aggressive Agent's Conversation history"]
     conservative_history: Annotated[
         str, "Conservative Agent's Conversation history"
     ]  # Conversation history
     neutral_history: Annotated[str, "Neutral Agent's Conversation history"]  # Conversation history
     history: Annotated[str, "Conversation history"]  # Conversation history
     latest_speaker: Annotated[str, "Analyst that spoke last"]
-    current_aggressive_response: Annotated[
-        str, "Latest response by the aggressive analyst"
-    ]
-    current_conservative_response: Annotated[
-        str, "Latest response by the conservative analyst"
-    ]
-    current_neutral_response: Annotated[
-        str, "Latest response by the neutral analyst"
-    ]
+    current_aggressive_response: Annotated[str, "Latest response by the aggressive analyst"]
+    current_conservative_response: Annotated[str, "Latest response by the conservative analyst"]
+    current_neutral_response: Annotated[str, "Latest response by the neutral analyst"]
     count: Annotated[int, "Length of the current conversation"]
 
 
@@ -63,10 +55,17 @@ class AgentState(MessagesState):
 
     # risk management team discussion step
     risk_debate_state: Annotated[RiskDebateState, "Current state of the debate on evaluating risk"]
-    final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
+    final_trade_decision: Annotated[str, "Final decision from the Portfolio Manager"]
+    final_rating: Annotated[
+        str, "The Portfolio Manager's 5-tier rating, or REVIEW when it has none"
+    ]
     past_context: Annotated[
         str,
-        "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)",
+        "Memory log context for the Portfolio Manager (same-ticker decisions + cross-ticker lessons), written by the Memory Log step",
+    ]
+    memory_note: Annotated[
+        str,
+        "What the Memory Log step could not settle or read this run, for the report; empty when all went well",
     ]
     portfolio_context: Annotated[
         str, "Caller-supplied holdings and cash, rendered at run start; empty when not provided"

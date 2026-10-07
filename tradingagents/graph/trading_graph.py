@@ -14,7 +14,7 @@ from tradingagents.dataflows.config import run_config, run_config_context, set_c
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.llm_clients import create_llm_client
+from tradingagents.llm_clients import create_llm_client, create_tier_client, tier_provider
 from tradingagents.llm_clients.factory import _coerce_max_retries, _coerce_max_tokens
 from tradingagents.memory import TradingMemoryLog, settlement
 from tradingagents.memory.reflection import Reflector
@@ -44,9 +44,15 @@ def _validate_trade_date(trade_date) -> str:
 
 # Config keys that do not change what a run writes: where it keeps its files,
 # whether it checkpoints, and how often it retries a provider.
-_NOT_IN_SIGNATURE = frozenset({
-    "results_dir", "data_cache_dir", "memory_log_path", "checkpoint_enabled", "llm_max_retries",
-})
+_NOT_IN_SIGNATURE = frozenset(
+    {
+        "results_dir",
+        "data_cache_dir",
+        "memory_log_path",
+        "checkpoint_enabled",
+        "llm_max_retries",
+    }
+)
 
 
 class TradingAgentsGraph:
@@ -76,33 +82,9 @@ class TradingAgentsGraph:
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
 
-        # Initialize LLMs — quick and deep may use different providers
-        quick_kwargs = self._get_provider_kwargs("quick")
-        deep_kwargs = self._get_provider_kwargs("deep")
-
-        if self.callbacks:
-            quick_kwargs["callbacks"] = self.callbacks
-            deep_kwargs["callbacks"] = self.callbacks
-
-        deep_client = create_llm_client(
-            provider=self.config.get(
-                "deep_llm_provider", self.config.get("llm_provider", "openai")
-            ),
-            model=self.config["deep_think_llm"],
-            base_url=self.config.get("deep_backend_url"),
-            **deep_kwargs,
-        )
-        quick_client = create_llm_client(
-            provider=self.config.get(
-                "quick_llm_provider", self.config.get("llm_provider", "openai")
-            ),
-            model=self.config["quick_think_llm"],
-            base_url=self.config.get("quick_backend_url"),
-            **quick_kwargs,
-        )
-
-        self.deep_thinking_llm = deep_client.get_llm()
-        self.quick_thinking_llm = quick_client.get_llm()
+        extra = {"callbacks": self.callbacks} if self.callbacks else {}
+        self.deep_thinking_llm = create_tier_client(self.config, "deep", **extra).get_llm()
+        self.quick_thinking_llm = create_tier_client(self.config, "quick", **extra).get_llm()
         self.reasoning_thinking_llm = self._build_reasoning_llm()
 
         self.memory_log = TradingMemoryLog(self.config)
@@ -114,7 +96,10 @@ class TradingAgentsGraph:
         # An analyst takes two graph steps per tool round, plus its first turn
         # and its wrap-up; a limit past the recursion limit would end the run
         # there instead.
-        max_tool_rounds, max_recur_limit = self.config["max_tool_rounds"], self.config["max_recur_limit"]
+        max_tool_rounds, max_recur_limit = (
+            self.config["max_tool_rounds"],
+            self.config["max_recur_limit"],
+        )
         if 2 * max_tool_rounds + 2 >= max_recur_limit:
             raise ValueError(
                 f"max_tool_rounds={max_tool_rounds} needs max_recur_limit above {2 * max_tool_rounds + 2}"
@@ -137,7 +122,9 @@ class TradingAgentsGraph:
         self.selected_analysts = tuple(selected_analysts)
 
         # Set up the graph: keep the workflow for recompilation with a checkpointer.
-        self.workflow = self.graph_setup.setup_graph(selected_analysts)
+        self.workflow = self.graph_setup.setup_graph(
+            selected_analysts, memory_node=self._memory_step
+        )
         self.graph = self.workflow.compile()
         self._checkpointer_ctx = None
         self._resuming = False
@@ -253,19 +240,25 @@ class TradingAgentsGraph:
         the run keeps its files and how it retries are left out.
         """
         settings = {k: v for k, v in self.config.items() if k not in _NOT_IN_SIGNATURE}
-        digest = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:12]
-        return "|".join([
-            "analysts=" + ",".join(self.selected_analysts),
-            f"debate={self.config['max_debate_rounds']}",
-            f"risk={self.config['max_risk_discuss_rounds']}",
-            f"asset={asset_type}",
-            # None, an empty book and a changed book are three different runs.
-            f"portfolio={portfolio.fingerprint() if portfolio is not None else 'none'}",
-            # The layout itself: a checkpoint saved when analysts ran one after
-            # another has pending nodes this graph no longer has.
-            "analysts=parallel",
-            f"settings={digest}",
-        ])
+        digest = hashlib.sha256(
+            json.dumps(settings, sort_keys=True, default=str).encode()
+        ).hexdigest()[:12]
+        return "|".join(
+            [
+                "analysts=" + ",".join(self.selected_analysts),
+                f"debate={self.config['max_debate_rounds']}",
+                f"risk={self.config['max_risk_discuss_rounds']}",
+                f"asset={asset_type}",
+                # None, an empty book and a changed book are three different runs.
+                f"portfolio={portfolio.fingerprint() if portfolio is not None else 'none'}",
+                # The layout itself: a checkpoint saved when analysts ran one after
+                # another has pending nodes this graph no longer has, and one saved
+                # before the Memory Log step would resume without the lessons.
+                "analysts=parallel",
+                "memory=parallel",
+                f"settings={digest}",
+            ]
+        )
 
     def propagate(self, company_name, trade_date, asset_type: str = "stock", portfolio=None):
         """Run the trading agents graph for a company on a specific date.
@@ -285,8 +278,12 @@ class TradingAgentsGraph:
         """
         trade_date = _validate_trade_date(trade_date)
 
-        with run_config(self.config), \
-                self.checkpoint_scope(company_name, trade_date, asset_type, portfolio) as thread_id_value:
+        with (
+            run_config(self.config),
+            self.checkpoint_scope(
+                company_name, trade_date, asset_type, portfolio
+            ) as thread_id_value,
+        ):
             return self._run_graph(
                 company_name,
                 trade_date,
@@ -374,7 +371,11 @@ class TradingAgentsGraph:
         return {
             "version": tradingagents.__version__,
             "llm_provider": cfg.get("llm_provider"),
+            "deep_think_provider": tier_provider(cfg, "deep") if cfg.get("llm_provider") else None,
             "deep_think_llm": cfg.get("deep_think_llm"),
+            "quick_think_provider": tier_provider(cfg, "quick")
+            if cfg.get("llm_provider")
+            else None,
             "quick_think_llm": cfg.get("quick_think_llm"),
             "analysts": list(self.selected_analysts),
             "max_debate_rounds": cfg.get("max_debate_rounds"),
@@ -384,53 +385,101 @@ class TradingAgentsGraph:
             "tool_vendors": dict(cfg.get("tool_vendors") or {}),
         }
 
-    def save_reports(self, final_state, ticker, save_path=None) -> Path:
-        """Write the markdown report tree for a completed run, like the CLI does.
+    def save_reports(self, final_state, ticker, save_path=None, html=True) -> Path:
+        """Write the report tree for a completed run, like the CLI does.
 
         Programmatic callers get the same on-disk reports the CLI produces. Pass
-        an explicit ``save_path`` or let it default under ``results_dir``.
+        an explicit ``save_path`` or let it default under ``results_dir``; the
+        report is also written as one HTML page unless ``html`` is False.
         """
         if save_path is None:
             save_path = self.default_report_path(ticker)
-        return write_report_tree(final_state, ticker, save_path, settings=self.run_settings())
+        return write_report_tree(
+            final_state, ticker, save_path, settings=self.run_settings(), html=html
+        )
 
     def default_report_path(self, ticker) -> Path:
         """Where a run's reports go unless told otherwise: under results_dir, stamped now."""
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return Path(self.config["results_dir"]) / "reports" / f"{safe_ticker_component(ticker)}_{stamp}"
+        return (
+            Path(self.config["results_dir"])
+            / "reports"
+            / f"{safe_ticker_component(ticker)}_{stamp}"
+        )
 
     def create_run_state(self, company_name, trade_date, asset_type: str = "stock", portfolio=None):
         """Build a run's initial state; propagate() and the CLI both start here.
 
-        Settles this ticker's pending decisions first, then injects the lessons
-        known by the trade date for the Portfolio Manager (#1251) and the
-        resolved instrument identity for every agent (#814). An entry point that
-        assembled the state itself would skip the memory log.
+        Injects the resolved instrument identity for every agent (#814). The
+        memory log's lessons are not here: the graph's Memory Log step settles
+        and loads them alongside the analysts (see ``_memory_step``).
         """
-        self.settle_pending(company_name)
         return self.propagator.create_initial_state(
             company_name,
             trade_date,
             asset_type=asset_type,
-            past_context=self.memory_log.get_past_context(
-                company_name, as_of=self._memory_as_of(trade_date)
-            ),
             instrument_context=self.resolve_instrument_context(
                 company_name, asset_type, trade_date
             ),
             portfolio_context=portfolio.render(company_name) if portfolio is not None else "",
         )
 
-    def settle_pending(self, company_name):
+    def _memory_step(self, state):
+        """The graph's Memory Log step, alongside the analysts (#1428): settle every
+        ticker's due decisions (#1445), then return the lessons known by the
+        trade date for the Portfolio Manager (#1251).
+
+        Settling fetches prices and asks the model for a reflection per decision,
+        so it runs beside the analysts instead of before them. A failure here
+        does not end the run: the analysts' work is kept, the lessons already in
+        the log are used, and the report says what could not be settled.
+        """
+        note = ""
+        try:
+            # Another run settling the same log does the work; this one goes on.
+            done = self.settle_all_pending(wait=False)
+            if done.failed:
+                note = (
+                    f"{len(done.failed)} past decision(s) could not be settled this run "
+                    "and stay pending."
+                )
+        except Exception as exc:
+            logger.warning("Settling past decisions failed: %s", exc)
+            note = f"Past decisions could not be settled this run ({type(exc).__name__}); they stay pending."
+        try:
+            past_context = self.memory_log.get_past_context(
+                state["company_of_interest"], as_of=self._memory_as_of(state["trade_date"])
+            )
+        except Exception as exc:
+            logger.warning("Reading the memory log failed: %s", exc)
+            past_context = ""
+            note = note or f"The memory log could not be read this run ({type(exc).__name__})."
+        return {"past_context": past_context, "memory_note": note}
+
+    def settle_pending(self, company_name) -> settlement.Settlement:
         """Settle this ticker's decisions whose holding window has now traded.
 
-        A run settles the ticker's earlier decisions on its way in, so the most
-        recent one stays pending until the next run for that ticker. A caller
-        that is done analyzing a ticker (a backtest sweep, a scheduled job) calls
-        this to settle it now.
+        A run settles every due decision alongside its analysts, so its own
+        decision stays pending until a later run. A caller that is done
+        analyzing a ticker (a backtest sweep, a scheduled job) calls this to
+        settle it now. Returns what was settled and what failed.
         """
         with run_config(self.config):
-            settlement.settle_pending(company_name, self.memory_log, self.reflector, self.config)
+            return settlement.settle_pending(
+                company_name, self.memory_log, self.reflector, self.config
+            )
+
+    def settle_all_pending(self, wait: bool = True) -> settlement.Settlement:
+        """Settle every ticker's decisions whose holding window has now traded (#1445).
+
+        For a scheduler whose tickers rotate: a ticker it stops analysing would
+        otherwise keep its decisions pending, and their lessons out of later runs.
+        With ``wait=False`` a pass already running on the same log is not waited for.
+        """
+        with run_config(self.config):
+            return settlement.settle_all_pending(
+                self.memory_log, self.reflector, self.config, wait=wait
+            )
 
     def record_decision(self, company_name, trade_date, final_state):
         """Record a finished run: its state log, and its decision in the memory log
@@ -443,7 +492,9 @@ class TradingAgentsGraph:
             )
             return
         self.memory_log.store_decision(
-            ticker=company_name, trade_date=trade_date, final_trade_decision=decision,
+            ticker=company_name,
+            trade_date=trade_date,
+            final_trade_decision=decision,
             rating=run_rating(final_state),
         )
 
@@ -473,7 +524,10 @@ class TradingAgentsGraph:
             final_state, printed = {}, set()
             for messages, state in self.stream_run(graph_input, **args):
                 for msg in messages:
-                    key = getattr(msg, "id", None) or (type(msg).__name__, getattr(msg, "content", None))
+                    key = getattr(msg, "id", None) or (
+                        type(msg).__name__,
+                        getattr(msg, "content", None),
+                    )
                     if key not in printed:
                         printed.add(key)
                         msg.pretty_print()
