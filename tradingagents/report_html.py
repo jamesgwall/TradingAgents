@@ -20,7 +20,9 @@ _TONE = {"Buy": "up", "Overweight": "up", "Hold": "level", "Underweight": "down"
 
 # The Tauric Research logo as published (tauric.ai/brand/tauric-logo.svg), drawn
 # in the page so it loads nothing.
-_LOGO = files("tradingagents").joinpath("assets/tauric-logo.svg").read_text(encoding="utf-8").strip()
+_LOGO = (
+    files("tradingagents").joinpath("assets/tauric-logo.svg").read_text(encoding="utf-8").strip()
+)
 _COMPANY = "https://tauric.ai"
 _ORG = "https://github.com/TauricResearch"
 _PROJECT = f"{_ORG}/TradingAgents"
@@ -202,8 +204,12 @@ def _render_agent_text(md: MarkdownIt, text: str) -> str:
 
 # What each data category serves, as a reader would name it.
 _CATEGORY = {
-    "core_stock_apis": "Prices", "technical_indicators": "Indicators", "fundamental_data": "Fundamentals",
-    "news_data": "News", "macro_data": "Macro", "prediction_markets": "Prediction markets",
+    "core_stock_apis": "Prices",
+    "technical_indicators": "Indicators",
+    "fundamental_data": "Fundamentals",
+    "news_data": "News",
+    "macro_data": "Macro",
+    "prediction_markets": "Prediction markets",
 }
 
 
@@ -228,17 +234,29 @@ def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, st
         s = settings.get
         for tier in ("deep", "quick"):
             provider = s(f"{tier}_think_provider") or s("llm_provider", "?")
-            details.append((f"{tier.capitalize()} model", _fields([provider, s(f"{tier}_think_llm", "?")])))
+            details.append(
+                (f"{tier.capitalize()} model", _fields([provider, s(f"{tier}_think_llm", "?")]))
+            )
         details.append(("Analysts", _fields(analyst_names(s("analysts")))))
-        details.append(("Debate rounds", " ".join((
-            _group("research", _fields([s("max_debate_rounds", "?")])),
-            _group("risk", _fields([s("max_risk_discuss_rounds", "?")])),
-        ))))
+        details.append(
+            (
+                "Debate rounds",
+                " ".join(
+                    (
+                        _group("research", _fields([s("max_debate_rounds", "?")])),
+                        _group("risk", _fields([s("max_risk_discuss_rounds", "?")])),
+                    )
+                ),
+            )
+        )
         vendors = {**(s("data_vendors") or {}), **(s("tool_vendors") or {})}
         if vendors:
-            details.append(("Data vendors", " ".join(
-                _group(_CATEGORY.get(k, k), _chain(v)) for k, v in vendors.items()
-            )))
+            details.append(
+                (
+                    "Data vendors",
+                    " ".join(_group(_CATEGORY.get(k, k), _chain(v)) for k, v in vendors.items()),
+                )
+            )
         details.append(("Version", escape(f"TradingAgents {s('version', '?')}")))
     if final_state.get("memory_note"):
         details.append(("Memory log", escape(final_state["memory_note"])))
@@ -268,8 +286,10 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
             for m, (agent, _f, _t) in enumerate(written, 1)
         )
         numeral, _, name = heading.partition(". ")
-        contents.append(f'<li><a href="#s{n}"><span class="num">{escape(numeral)}</span> '
-                        f'<span class="label">{escape(name)}</span></a><ul>{agents}</ul></li>')
+        contents.append(
+            f'<li><a href="#s{n}"><span class="num">{escape(numeral)}</span> '
+            f'<span class="label">{escape(name)}</span></a><ul>{agents}</ul></li>'
+        )
         body.append(f'<section id="s{n}"><h2>{escape(heading)}</h2>')
         for m, (agent, _filename, text) in enumerate(written, 1):
             body.append(f'<h3 id="s{n}-{m}">{escape(agent)}</h3>\n{_render_agent_text(md, text)}')

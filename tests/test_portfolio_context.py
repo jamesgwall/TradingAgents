@@ -161,10 +161,17 @@ def test_decision_agents_see_the_portfolio(module, factory, monkeypatch):
         "past_context": "",
         "portfolio_context": "PORTFOLIO_BLOCK_MARKER",
         "investment_debate_state": {"history": "", "count": 0},
-        "risk_debate_state": {"history": "", "latest_speaker": "", "count": 0,
-                              "aggressive_history": "", "conservative_history": "", "neutral_history": "",
-                              "current_aggressive_response": "", "current_conservative_response": "",
-                              "current_neutral_response": ""},
+        "risk_debate_state": {
+            "history": "",
+            "latest_speaker": "",
+            "count": 0,
+            "aggressive_history": "",
+            "conservative_history": "",
+            "neutral_history": "",
+            "current_aggressive_response": "",
+            "current_conservative_response": "",
+            "current_neutral_response": "",
+        },
     }
     node = getattr(mod, factory)(_LLM())
     node(state)
@@ -200,7 +207,16 @@ def test_completed_run_clears_the_checkpoint_it_wrote(tmp_path, monkeypatch):
     graph._resuming = False
     graph.propagator.get_graph_args = lambda callbacks=None: {}
     graph._log_state = lambda *a, **k: None
-    graph.graph = type("G", (), {"invoke": lambda self, i, **k: {"final_trade_decision": "Rating: Hold\n\nx", "final_rating": "Hold"}})()
+    graph.graph = type(
+        "G",
+        (),
+        {
+            "invoke": lambda self, i, **k: {
+                "final_trade_decision": "Rating: Hold\n\nx",
+                "final_rating": "Hold",
+            }
+        },
+    )()
     book = PortfolioContext.model_validate(HOLDING)
 
     written = graph._run_signature("stock", book)  # what begin_checkpoint keys on

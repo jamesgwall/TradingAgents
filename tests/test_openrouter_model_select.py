@@ -23,9 +23,14 @@ class TestOpenRouterPromptLabel:
             captured["message"] = message
             return _asks("openrouter/some-model")
 
-        with mock.patch.object(prompts, "_fetch_openrouter_models",
-                               return_value=[("Some Model", "openrouter/some-model")]), \
-             mock.patch.object(prompts.questionary, "select", side_effect=fake_select):
+        with (
+            mock.patch.object(
+                prompts,
+                "_fetch_openrouter_models",
+                return_value=[("Some Model", "openrouter/some-model")],
+            ),
+            mock.patch.object(prompts.questionary, "select", side_effect=fake_select),
+        ):
             out = prompts.select_openrouter_model(mode)
 
         assert label in captured["message"]
@@ -66,8 +71,10 @@ class TestMainstreamFilter:
             captured["values"] = [c.value for c in kwargs["choices"]]
             return _asks("anthropic/claude-x")
 
-        with mock.patch.object(prompts, "_fetch_openrouter_models", return_value=models), \
-             mock.patch.object(prompts.questionary, "select", side_effect=fake_select):
+        with (
+            mock.patch.object(prompts, "_fetch_openrouter_models", return_value=models),
+            mock.patch.object(prompts.questionary, "select", side_effect=fake_select),
+        ):
             prompts.select_openrouter_model("quick")
 
         assert "anthropic/claude-x" in captured["values"]
@@ -84,8 +91,10 @@ class TestMainstreamFilter:
             captured["values"] = [c.value for c in kwargs["choices"]]
             return _asks("nex-agi/x")
 
-        with mock.patch.object(prompts, "_fetch_openrouter_models", return_value=models), \
-             mock.patch.object(prompts.questionary, "select", side_effect=fake_select):
+        with (
+            mock.patch.object(prompts, "_fetch_openrouter_models", return_value=models),
+            mock.patch.object(prompts.questionary, "select", side_effect=fake_select),
+        ):
             prompts.select_openrouter_model("deep")
 
         assert "nex-agi/x" in captured["values"]  # fallback keeps the list usable
@@ -94,21 +103,27 @@ class TestMainstreamFilter:
 @pytest.mark.unit
 class TestCancelExitsCleanly:
     def test_dropdown_cancel_exits(self):
-        with mock.patch.object(prompts, "_fetch_openrouter_models", return_value=[]), \
-             mock.patch.object(prompts.questionary, "select", return_value=_asks(None)), \
-             pytest.raises(SystemExit):
+        with (
+            mock.patch.object(prompts, "_fetch_openrouter_models", return_value=[]),
+            mock.patch.object(prompts.questionary, "select", return_value=_asks(None)),
+            pytest.raises(SystemExit),
+        ):
             prompts.select_openrouter_model("quick")
 
     def test_custom_id_cancel_exits(self):
-        with mock.patch.object(prompts, "_fetch_openrouter_models", return_value=[]), \
-             mock.patch.object(prompts.questionary, "select", return_value=_asks("custom")), \
-             mock.patch.object(prompts.questionary, "text", return_value=_asks(None)), \
-             pytest.raises(SystemExit):
+        with (
+            mock.patch.object(prompts, "_fetch_openrouter_models", return_value=[]),
+            mock.patch.object(prompts.questionary, "select", return_value=_asks("custom")),
+            mock.patch.object(prompts.questionary, "text", return_value=_asks(None)),
+            pytest.raises(SystemExit),
+        ):
             prompts.select_openrouter_model("deep")
 
     def test_prompt_custom_model_id_cancel_exits(self):
-        with mock.patch.object(prompts.questionary, "text", return_value=_asks(None)), \
-             pytest.raises(SystemExit):
+        with (
+            mock.patch.object(prompts.questionary, "text", return_value=_asks(None)),
+            pytest.raises(SystemExit),
+        ):
             prompts._prompt_custom_model_id()
 
 
@@ -119,6 +134,8 @@ class TestLanguageDefaultsToEnglish:
             assert prompts.ask_output_language() == "English"
 
     def test_custom_language_cancel_defaults_english(self):
-        with mock.patch.object(prompts.questionary, "select", return_value=_asks("custom")), \
-             mock.patch.object(prompts.questionary, "text", return_value=_asks(None)):
+        with (
+            mock.patch.object(prompts.questionary, "select", return_value=_asks("custom")),
+            mock.patch.object(prompts.questionary, "text", return_value=_asks(None)),
+        ):
             assert prompts.ask_output_language() == "English"

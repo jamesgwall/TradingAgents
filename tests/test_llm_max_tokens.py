@@ -98,6 +98,7 @@ def test_openai_and_google_clients_accept_the_kwarg():
 
 # --- env overlay -----------------------------------------------------------
 
+
 def _config_with_env(monkeypatch, **overrides):
     """The defaults as the environment given here would set them."""
     for key in list(default_config_module._ENV_OVERRIDES):

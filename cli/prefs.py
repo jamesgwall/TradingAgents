@@ -21,7 +21,7 @@ import os
 from pathlib import Path
 
 from cli.models import AnalystType, AssetType
-from cli.prompts import _llm_provider_table, filter_analysts_for_asset_type
+from cli.prompts import LISTED_LIVE, _llm_provider_table, filter_analysts_for_asset_type
 from tradingagents.dataflows.files import replace_file
 from tradingagents.llm_clients.model_catalog import get_model_options
 
@@ -59,7 +59,10 @@ def save_last_run(selections: dict) -> None:
     try:
         _PREFS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # A concurrent run reads one file or the other.
-        replace_file(_PREFS_PATH, lambda temp: Path(temp).write_text(json.dumps(kept, indent=2), encoding="utf-8"))
+        replace_file(
+            _PREFS_PATH,
+            lambda temp: Path(temp).write_text(json.dumps(kept, indent=2), encoding="utf-8"),
+        )
     except OSError:
         return
 
@@ -93,6 +96,8 @@ def sanitize(prefs: dict, asset_type) -> dict:
                 offered = {model for _, model in get_model_options(base, mode)}
             except KeyError:
                 continue
-            if prefs.get(field) in offered:
+            # Models listed live are not in the catalog, so any model ID is kept.
+            listed_live = base in LISTED_LIVE and isinstance(prefs.get(field), str)
+            if prefs.get(field) in offered or listed_live:
                 kept[field] = prefs[field]
     return kept

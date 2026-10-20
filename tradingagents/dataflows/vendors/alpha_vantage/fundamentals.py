@@ -26,7 +26,14 @@ def get_fundamentals(ticker: str, as_of_date: str = None) -> str:
         return withheld
 
     if is_etf(ticker):
-        return json.dumps({"Symbol": ticker.upper(), "AssetType": "ETF", "Name": f"{ticker.upper()} Exchange Traded Fund", "Description": "Corporate financial statements do not apply to ETFs."})
+        return json.dumps(
+            {
+                "Symbol": ticker.upper(),
+                "AssetType": "ETF",
+                "Name": f"{ticker.upper()} Exchange Traded Fund",
+                "Description": "Corporate financial statements do not apply to ETFs.",
+            }
+        )
 
     params = {
         "symbol": ticker,
@@ -66,4 +73,11 @@ def get_income_statement(ticker: str, freq: str = "quarterly", as_of_date: str =
 
 
 def _etf_statement(ticker: str, name: str) -> str:
-    return json.dumps({"symbol": ticker.upper(), "annualReports": [], "quarterlyReports": [], "note": f"{name} does not apply to ETFs."})
+    return json.dumps(
+        {
+            "symbol": ticker.upper(),
+            "annualReports": [],
+            "quarterlyReports": [],
+            "note": f"{name} does not apply to ETFs.",
+        }
+    )

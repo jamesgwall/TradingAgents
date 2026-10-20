@@ -53,7 +53,9 @@ def _verified_rows(symbol: str, as_of_date: str) -> pd.DataFrame:
     df = df.dropna(subset=["Date"])
     df = df[df["Date"] <= pd.to_datetime(as_of_date)].sort_values("Date")
     if df.empty:
-        raise NoMarketDataError(symbol, normalize_symbol(symbol), f"no price rows on or before {as_of_date}")
+        raise NoMarketDataError(
+            symbol, normalize_symbol(symbol), f"no price rows on or before {as_of_date}"
+        )
     return df
 
 

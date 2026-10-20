@@ -8,6 +8,7 @@ A free API key (https://fred.stlouisfed.org/docs/api/api_key.html) is read from
 ``FRED_API_KEY``; if it is unset the vendor raises ``FredNotConfiguredError`` so
 the routing layer treats it as "unavailable" rather than a hard crash.
 """
+
 import logging
 import os
 from datetime import datetime, timedelta
@@ -246,9 +247,7 @@ def get_macro_data(
 
     # FRED encodes a missing observation as ".".
     points = [
-        (o["date"], o["value"])
-        for o in observations
-        if o.get("value") not in (".", None, "")
+        (o["date"], o["value"]) for o in observations if o.get("value") not in (".", None, "")
     ]
 
     header = (
@@ -288,9 +287,7 @@ def get_macro_data(
         note = f"\n_(showing the most recent {MAX_ROWS} of {len(points)} observations)_\n"
 
     table = (
-        "\n| Date | Value |\n| --- | --- |\n"
-        + "\n".join(f"| {d} | {v} |" for d, v in shown)
-        + "\n"
+        "\n| Date | Value |\n| --- | --- |\n" + "\n".join(f"| {d} | {v} |" for d, v in shown) + "\n"
     )
 
     return header + summary + note + table

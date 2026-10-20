@@ -30,14 +30,13 @@ def _stamp(path, ts):
     t = ts.to_pydatetime().timestamp()
     os.utime(path, (t, t))
 
+
 # --- date normalization -----------------------------------------------------
 
 
 @pytest.mark.unit
 def test_normalize_dates_strips_tz_and_normalizes_to_midnight():
-    aware = pd.Series(pd.to_datetime(
-        ["2026-05-08 09:30:00-04:00", "2026-05-09 16:00:00-04:00"]
-    ))
+    aware = pd.Series(pd.to_datetime(["2026-05-08 09:30:00-04:00", "2026-05-09 16:00:00-04:00"]))
     out = ohlcv._normalize_dates(aware)
     assert out.dt.tz is None
     assert list(out) == [pd.Timestamp("2026-05-08"), pd.Timestamp("2026-05-09")]
@@ -55,11 +54,13 @@ def test_normalize_dates_leaves_naive_dates_at_midnight():
 def test_normalize_dates_handles_mixed_dst_offsets():
     # 5y of US bars span DST; via a cache CSV they arrive as mixed-offset
     # strings, which pd.to_datetime can't unify. Each keeps its own local date.
-    mixed = pd.Series([
-        "2026-01-08 00:00:00-05:00",  # EST
-        "2026-06-08 00:00:00-04:00",  # EDT
-        "not-a-date",                 # -> NaT
-    ])
+    mixed = pd.Series(
+        [
+            "2026-01-08 00:00:00-05:00",  # EST
+            "2026-06-08 00:00:00-04:00",  # EDT
+            "not-a-date",  # -> NaT
+        ]
+    )
     out = ohlcv._normalize_dates(mixed)
     assert out.iloc[0] == pd.Timestamp("2026-01-08")
     assert out.iloc[1] == pd.Timestamp("2026-06-08")
@@ -88,8 +89,9 @@ def test_clean_dataframe_keeps_nan_close_for_the_caller_to_inspect():
 
 @pytest.mark.unit
 def test_fill_price_gaps_drops_nan_close_rows():
-    df = pd.DataFrame({"Date": pd.to_datetime(["2026-05-07", "2026-05-08"]),
-                       "Close": [float("nan"), 100.0]})
+    df = pd.DataFrame(
+        {"Date": pd.to_datetime(["2026-05-07", "2026-05-08"]), "Close": [float("nan"), 100.0]}
+    )
     filled = ohlcv._fill_price_gaps(df)
     assert len(filled) == 1
     assert filled["Close"].iloc[0] == 100.0
@@ -109,6 +111,7 @@ def _run_load(monkeypatch, tmp_path, frame, curr_date):
 
     def _fail_download(*a, **k):
         raise AssertionError("should use the seeded cache, not download")
+
     monkeypatch.setattr(ohlcv.yf, "Ticker", lambda symbol: SimpleNamespace(history=_fail_download))
     return ohlcv.load_ohlcv("AAPL", curr_date)
 
@@ -226,8 +229,15 @@ def test_the_snapshot_does_not_present_a_filled_price_as_reported(monkeypatch, t
     cache = tmp_path / "AAPL-YFin-data.csv"
     cache.write_text(frame.to_csv(index=False))
     _stamp(cache, today)
-    monkeypatch.setattr(ohlcv.yf, "Ticker", lambda symbol: SimpleNamespace(
-        history=lambda *a, **k: (_ for _ in ()).throw(AssertionError("should read the seeded cache"))))
+    monkeypatch.setattr(
+        ohlcv.yf,
+        "Ticker",
+        lambda symbol: SimpleNamespace(
+            history=lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should read the seeded cache")
+            )
+        ),
+    )
 
     out = snapshot.build_verified_market_snapshot("AAPL", "2026-05-08", 3)
 

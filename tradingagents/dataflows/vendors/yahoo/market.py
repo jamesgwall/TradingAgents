@@ -68,9 +68,7 @@ def get_YFin_data_online(
 def get_stock_stats_indicators_window(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    as_of_date: Annotated[
-        str, "The current trading date you are trading on, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
     look_back_days: Annotated[int, "how many days to look back"],
 ) -> str:
 
@@ -165,7 +163,7 @@ def get_stock_stats_indicators_window(
         date_values = []
 
         while current_dt >= before:
-            date_str = current_dt.strftime('%Y-%m-%d')
+            date_str = current_dt.strftime("%Y-%m-%d")
 
             # Look up the indicator value for this date
             if date_str in indicator_data:
@@ -207,7 +205,7 @@ def get_stock_stats_indicators_window(
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],
-    as_of_date: Annotated[str, "current date for reference"]
+    as_of_date: Annotated[str, "current date for reference"],
 ) -> dict:
     """
     Optimized bulk calculation of stock stats indicators.
@@ -238,9 +236,7 @@ def _get_stock_stats_bulk(
 def get_stockstats_indicator(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    as_of_date: Annotated[
-        str, "The current trading date you are trading on, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
 ) -> str:
 
     as_of_dt = datetime.strptime(as_of_date, "%Y-%m-%d")
@@ -269,7 +265,9 @@ def get_closes(symbol: str, start_date: str, end_date: str) -> pd.Series:
     """Daily closes from ``start_date`` up to, not including, ``end_date``."""
     canonical = normalize_symbol(symbol)
     history = yf_retry(lambda: yf.Ticker(canonical).history(start=start_date, end=end_date))
-    return history["Close"] if history is not None and "Close" in history else pd.Series(dtype=float)
+    return (
+        history["Close"] if history is not None and "Close" in history else pd.Series(dtype=float)
+    )
 
 
 def get_stock_stats(
@@ -277,9 +275,7 @@ def get_stock_stats(
     indicator: Annotated[
         str, "quantitative indicators based off of the stock data for the company"
     ],
-    as_of_date: Annotated[
-        str, "curr date for retrieving stock price data, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "curr date for retrieving stock price data, YYYY-mm-dd"],
 ):
     data = load_ohlcv(symbol, as_of_date)
     df = wrap(data)

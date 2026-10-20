@@ -16,7 +16,13 @@ UNATTENDED_ENV = {
     "TRADINGAGENTS_LLM_PROVIDER": "openai",
     "TRADINGAGENTS_QUICK_THINK_LLM": "gpt-6-luna",
 }
-FLAGS = {"ticker": "NVDA", "date": "2026-09-23", "analysts": "market,news", "save": True, "show": False}
+FLAGS = {
+    "ticker": "NVDA",
+    "date": "2026-09-23",
+    "analysts": "market,news",
+    "save": True,
+    "show": False,
+}
 
 
 @pytest.mark.unit
@@ -37,7 +43,10 @@ class TestFlagValues:
             prompts.parse_analysis_date("23/09/2026")
 
     def test_analysts_are_named_and_checked_against_the_asset(self):
-        assert prompts.parse_analysts(" Market, news ", AssetType.STOCK) == [AnalystType.MARKET, AnalystType.NEWS]
+        assert prompts.parse_analysts(" Market, news ", AssetType.STOCK) == [
+            AnalystType.MARKET,
+            AnalystType.NEWS,
+        ]
         with pytest.raises(ValueError, match="market, sentiment, news, fundamentals"):
             prompts.parse_analysts("market,macro", AssetType.STOCK)
         with pytest.raises(ValueError, match="crypto"):
@@ -56,8 +65,7 @@ def test_flags_skip_exactly_their_own_steps(monkeypatch):
 
     for step in ("get_ticker", "get_analysis_date", "select_analysts"):
         monkeypatch.setattr(selections, step, no_prompt)
-    monkeypatch.setattr(selections, "fetch_announcements", lambda: None)
-    monkeypatch.setattr(selections, "display_announcements", lambda *a: None)
+    monkeypatch.setattr(selections.updates, "enabled", lambda: False)
 
     chosen = selections._prompt_selections({}, FLAGS)
 
@@ -102,7 +110,7 @@ def test_save_and_show_answer_the_questions_after_the_run(monkeypatch, tmp_path)
         raise AssertionError("prompted although --save/--show answered")
 
     monkeypatch.setattr(run.typer, "prompt", no_prompt)
-    monkeypatch.setattr(run, "_graphical_browser", lambda: _Browser())   # even at a desktop
+    monkeypatch.setattr(run, "_graphical_browser", lambda: _Browser())  # even at a desktop
     shown = []
     monkeypatch.setattr(run, "display_complete_report", lambda state: shown.append(state))
     from tradingagents.graph.trading_graph import TradingAgentsGraph
@@ -116,20 +124,6 @@ def test_save_and_show_answer_the_questions_after_the_run(monkeypatch, tmp_path)
 
     assert list(tmp_path.glob("reports/NVDA_*/complete_report.md"))
     assert shown == []
-
-
-
-@pytest.mark.unit
-def test_an_announcement_does_not_wait_for_enter_without_a_terminal(monkeypatch):
-    from cli import announcements
-    from cli.display import console
-
-    def no_wait(*a):
-        raise AssertionError("waited for Enter with no terminal")
-
-    monkeypatch.setattr(announcements.getpass, "getpass", no_wait)
-    monkeypatch.setattr(announcements.sys.stdin, "isatty", lambda: False)
-    announcements.display_announcements(console, {"content": "Maintenance tonight", "require_attention": True})
 
 
 @pytest.mark.unit
@@ -151,8 +145,19 @@ def test_the_command_passes_its_flags_to_the_run(monkeypatch):
     seen = {}
     monkeypatch.setattr(cli_main, "run_analysis", lambda **kw: seen.update(kw))
 
-    result = CliRunner().invoke(cli_main.app, ["--ticker", "NVDA", "--date", "2026-09-23",
-                                               "--analysts", "market,news", "--save", "--no-show"])
+    result = CliRunner().invoke(
+        cli_main.app,
+        [
+            "--ticker",
+            "NVDA",
+            "--date",
+            "2026-09-23",
+            "--analysts",
+            "market,news",
+            "--save",
+            "--no-show",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     assert seen["flags"] == {**FLAGS, "html": None}
@@ -160,7 +165,10 @@ def test_the_command_passes_its_flags_to_the_run(monkeypatch):
 
 @pytest.mark.unit
 def test_sentiment_names_the_sentiment_analyst():
-    assert prompts.parse_analysts("sentiment,market", AssetType.STOCK) == [AnalystType.MARKET, AnalystType.SOCIAL]
+    assert prompts.parse_analysts("sentiment,market", AssetType.STOCK) == [
+        AnalystType.MARKET,
+        AnalystType.SOCIAL,
+    ]
 
 
 @pytest.mark.unit
@@ -181,9 +189,17 @@ def test_rounds_from_the_environment_do_not_claim_a_depth_was_chosen(monkeypatch
     """With both round counts set, the depth question never appeared."""
     monkeypatch.setenv("TRADINGAGENTS_MAX_DEBATE_ROUNDS", "1")
     monkeypatch.setenv("TRADINGAGENTS_MAX_RISK_ROUNDS", "1")
-    selections = {"research_depth": 3, "quick_think_llm": "q", "deep_think_llm": "d", "backend_url": None,
-                  "llm_provider": "openai", "google_thinking_level": None, "openai_reasoning_effort": None,
-                  "anthropic_effort": None, "output_language": "English"}
+    selections = {
+        "research_depth": 3,
+        "quick_think_llm": "q",
+        "deep_think_llm": "d",
+        "backend_url": None,
+        "llm_provider": "openai",
+        "google_thinking_level": None,
+        "openai_reasoning_effort": None,
+        "anthropic_effort": None,
+        "output_language": "English",
+    }
 
     run._build_run_config(selections, None)
 
@@ -200,8 +216,7 @@ def test_an_unknown_analyst_error_names_the_analysts_as_users_know_them():
 def _selections_with_env(monkeypatch, keys=None):
     for name, value in UNATTENDED_ENV.items():
         monkeypatch.setenv(name, value)
-    monkeypatch.setattr(selections, "fetch_announcements", lambda: None)
-    monkeypatch.setattr(selections, "display_announcements", lambda *a: None)
+    monkeypatch.setattr(selections.updates, "enabled", lambda: False)
     checked = keys if keys is not None else []
     monkeypatch.setattr(selections, "ensure_api_key", lambda provider: checked.append(provider))
     return checked
@@ -247,7 +262,9 @@ def test_a_saved_report_includes_the_html_page_unless_declined(monkeypatch, tmp_
     monkeypatch.setattr(run, "display_complete_report", lambda state: None)
 
     run._offer_reports(STATE, _report_graph(tmp_path / "a"), "NVDA", save=True, show=False)
-    run._offer_reports(STATE, _report_graph(tmp_path / "b"), "NVDA", save=True, show=False, html=False)
+    run._offer_reports(
+        STATE, _report_graph(tmp_path / "b"), "NVDA", save=True, show=False, html=False
+    )
 
     assert list((tmp_path / "a").glob("reports/NVDA_*/complete_report.html"))
     assert list((tmp_path / "b").glob("reports/NVDA_*/complete_report.md"))
@@ -271,8 +288,16 @@ def _answer(monkeypatch, answers):
 
 @pytest.mark.unit
 def test_an_interactive_run_asks_for_the_html_page_and_opens_it(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": "rel/out", "HTML": "Y",
-                                  "browser": "Y", "Display full report": "N"})
+    asked = _answer(
+        monkeypatch,
+        {
+            "Save report": "Y",
+            "Save path": "rel/out",
+            "HTML": "Y",
+            "browser": "Y",
+            "Display full report": "N",
+        },
+    )
     browser = _Browser()
     monkeypatch.setattr(run, "_graphical_browser", lambda: browser)
     monkeypatch.chdir(tmp_path)
@@ -286,8 +311,10 @@ def test_an_interactive_run_asks_for_the_html_page_and_opens_it(monkeypatch, tmp
 
 @pytest.mark.unit
 def test_without_a_browser_window_the_page_is_not_offered_for_opening(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y",
-                                  "Display full report": "N"})
+    asked = _answer(
+        monkeypatch,
+        {"Save report": "Y", "Save path": None, "HTML": "Y", "Display full report": "N"},
+    )
     monkeypatch.setattr(run, "_graphical_browser", lambda: None)
 
     run._offer_reports(STATE, _report_graph(tmp_path), "NVDA")
@@ -298,8 +325,10 @@ def test_without_a_browser_window_the_page_is_not_offered_for_opening(monkeypatc
 
 @pytest.mark.unit
 def test_declining_the_html_page_saves_only_the_markdown(monkeypatch, tmp_path):
-    asked = _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "N",
-                                  "Display full report": "N"})
+    asked = _answer(
+        monkeypatch,
+        {"Save report": "Y", "Save path": None, "HTML": "N", "Display full report": "N"},
+    )
     monkeypatch.setattr(run, "_graphical_browser", lambda: _Browser())
 
     run._offer_reports(STATE, _report_graph(tmp_path), "NVDA")
@@ -309,15 +338,24 @@ def test_declining_the_html_page_saves_only_the_markdown(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("env, browser, offered", [
-    ({}, "background", True),
-    ({"SSH_CONNECTION": "10.0.0.1 22 10.0.0.2 22"}, "background", False),   # the page is on the remote
-    ({"SSH_TTY": "/dev/pts/0"}, "background", False),
-    ({}, "terminal", False),       # a text browser would take over the terminal
-    ({}, "elinks", False),
-    ({}, None, False),             # no browser at all
-])
-def test_a_page_is_opened_only_in_a_browser_window_on_this_machine(monkeypatch, env, browser, offered):
+@pytest.mark.parametrize(
+    "env, browser, offered",
+    [
+        ({}, "background", True),
+        (
+            {"SSH_CONNECTION": "10.0.0.1 22 10.0.0.2 22"},
+            "background",
+            False,
+        ),  # the page is on the remote
+        ({"SSH_TTY": "/dev/pts/0"}, "background", False),
+        ({}, "terminal", False),  # a text browser would take over the terminal
+        ({}, "elinks", False),
+        ({}, None, False),  # no browser at all
+    ],
+)
+def test_a_page_is_opened_only_in_a_browser_window_on_this_machine(
+    monkeypatch, env, browser, offered
+):
     import webbrowser
 
     for name in ("SSH_CONNECTION", "SSH_TTY"):
@@ -328,9 +366,11 @@ def test_a_page_is_opened_only_in_a_browser_window_on_this_machine(monkeypatch, 
     def get():
         if browser is None:
             raise webbrowser.Error("no runnable browser")
-        return {"background": lambda: webbrowser.BackgroundBrowser("firefox"),
-                "terminal": lambda: webbrowser.GenericBrowser("lynx"),
-                "elinks": lambda: webbrowser.Elinks("elinks")}[browser]()
+        return {
+            "background": lambda: webbrowser.BackgroundBrowser("firefox"),
+            "terminal": lambda: webbrowser.GenericBrowser("lynx"),
+            "elinks": lambda: webbrowser.Elinks("elinks"),
+        }[browser]()
 
     monkeypatch.setattr(run.webbrowser, "get", get)
     assert (run._graphical_browser() is not None) is offered
@@ -369,8 +409,16 @@ def test_a_page_the_browser_cannot_open_is_pointed_to(monkeypatch, tmp_path, cap
         def open(self, url):
             return False
 
-    _answer(monkeypatch, {"Save report": "Y", "Save path": None, "HTML": "Y", "browser": "Y",
-                          "Display full report": "N"})
+    _answer(
+        monkeypatch,
+        {
+            "Save report": "Y",
+            "Save path": None,
+            "HTML": "Y",
+            "browser": "Y",
+            "Display full report": "N",
+        },
+    )
     monkeypatch.setattr(run, "_graphical_browser", lambda: Failing())
     monkeypatch.setattr(run.console, "print", lambda *a, **k: print(*a))
 

@@ -99,16 +99,23 @@ def _answer_every_prompt(monkeypatch):
     """Drive the real selection flow, answering each prompt with a fixed value."""
     import cli.main as m
 
-    monkeypatch.setattr(cli_selections, "fetch_announcements", lambda: [])
-    monkeypatch.setattr(cli_selections, "display_announcements", lambda *a: None)
+    monkeypatch.setattr(cli_selections.updates, "enabled", lambda: False)
     monkeypatch.setattr(cli_selections, "get_ticker", lambda: "NVDA")
     monkeypatch.setattr(cli_selections, "get_analysis_date", lambda: "2026-09-01")
     monkeypatch.setattr(cli_selections, "ask_output_language", lambda default=None: "English")
-    monkeypatch.setattr(cli_selections, "select_analysts", lambda asset_type, default=None: [AnalystType.MARKET])
+    monkeypatch.setattr(
+        cli_selections, "select_analysts", lambda asset_type, default=None: [AnalystType.MARKET]
+    )
     monkeypatch.setattr(cli_selections, "select_research_depth", lambda default=None: 3)
-    monkeypatch.setattr(cli_selections, "select_llm_provider", lambda default=None: ("openai", None))
-    monkeypatch.setattr(cli_selections, "select_shallow_thinking_agent", lambda p, default=None: "gpt-5.6-mini")
-    monkeypatch.setattr(cli_selections, "select_deep_thinking_agent", lambda p, default=None: "gpt-5.6")
+    monkeypatch.setattr(
+        cli_selections, "select_llm_provider", lambda default=None: ("openai", None)
+    )
+    monkeypatch.setattr(
+        cli_selections, "select_shallow_thinking_agent", lambda p, default=None: "gpt-5.6-mini"
+    )
+    monkeypatch.setattr(
+        cli_selections, "select_deep_thinking_agent", lambda p, default=None: "gpt-5.6"
+    )
     monkeypatch.setattr(cli_selections, "ask_openai_reasoning_effort", lambda: "medium")
     return m
 
@@ -149,18 +156,28 @@ def test_a_remembered_endpoint_is_offered_back(monkeypatch):
 
     save_last_run({"llm_provider": "openai_compatible", "backend_url": "http://localhost:1234/v1"})
     offered = {}
-    monkeypatch.setattr(cli_selections, "select_llm_provider", lambda default=None: ("openai_compatible", None))
-    monkeypatch.setattr(cli_selections, "prompt_openai_compatible_url",
-                        lambda default=None: offered.setdefault("default", default) or "http://x/v1")
-    monkeypatch.setattr(cli_selections, "fetch_announcements", lambda: [])
-    monkeypatch.setattr(cli_selections, "display_announcements", lambda *a: None)
+    monkeypatch.setattr(
+        cli_selections, "select_llm_provider", lambda default=None: ("openai_compatible", None)
+    )
+    monkeypatch.setattr(
+        cli_selections,
+        "prompt_openai_compatible_url",
+        lambda default=None: offered.setdefault("default", default) or "http://x/v1",
+    )
+    monkeypatch.setattr(cli_selections.updates, "enabled", lambda: False)
     monkeypatch.setattr(cli_selections, "get_ticker", lambda: "NVDA")
     monkeypatch.setattr(cli_selections, "get_analysis_date", lambda: "2026-09-01")
     monkeypatch.setattr(cli_selections, "ask_output_language", lambda default=None: "English")
-    monkeypatch.setattr(cli_selections, "select_analysts", lambda asset_type, default=None: [AnalystType.MARKET])
+    monkeypatch.setattr(
+        cli_selections, "select_analysts", lambda asset_type, default=None: [AnalystType.MARKET]
+    )
     monkeypatch.setattr(cli_selections, "select_research_depth", lambda default=None: 1)
-    monkeypatch.setattr(cli_selections, "select_shallow_thinking_agent", lambda p, default=None: "local-model")
-    monkeypatch.setattr(cli_selections, "select_deep_thinking_agent", lambda p, default=None: "local-model")
+    monkeypatch.setattr(
+        cli_selections, "select_shallow_thinking_agent", lambda p, default=None: "local-model"
+    )
+    monkeypatch.setattr(
+        cli_selections, "select_deep_thinking_agent", lambda p, default=None: "local-model"
+    )
 
     cli_selections.get_user_selections()
 

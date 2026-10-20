@@ -6,6 +6,7 @@ news injected future articles), #993 (empty-after-filter returned a blank body),
 and #1126 (inclusive upper bound leaked the midnight-after article; host-local
 timestamp parsing made filtering machine-dependent).
 """
+
 from datetime import UTC, datetime
 
 import pytest
@@ -123,6 +124,7 @@ def _ticker_with(articles, monkeypatch, search_news=(), search_quotes=("AAPL",))
 
     By default the search knows the symbol but has no articles, i.e. Yahoo answered.
     """
+
     class FakeTicker:
         def __init__(self, *a, **k):
             pass
@@ -185,15 +187,20 @@ def test_ticker_news_covered_but_empty_window_is_a_real_absence(monkeypatch):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("dates, expect_gap", [
-    ([], True),                                              # empty feed: covers at most now
-    ([None], True),                                          # undated only: same
-    ([datetime(2026, 5, 20, tzinfo=UTC)], True),    # all after the window
-    ([datetime(2026, 5, 4, tzinfo=UTC)], True),     # starts mid-window: partial
-    ([datetime(2026, 5, 1, 18, tzinfo=UTC)], False),  # reaches the first day
-    ([datetime(2026, 5, 20, tzinfo=UTC),
-      datetime(2026, 4, 1, tzinfo=UTC)], False),    # coverage reaches back
-])
+@pytest.mark.parametrize(
+    "dates, expect_gap",
+    [
+        ([], True),  # empty feed: covers at most now
+        ([None], True),  # undated only: same
+        ([datetime(2026, 5, 20, tzinfo=UTC)], True),  # all after the window
+        ([datetime(2026, 5, 4, tzinfo=UTC)], True),  # starts mid-window: partial
+        ([datetime(2026, 5, 1, 18, tzinfo=UTC)], False),  # reaches the first day
+        (
+            [datetime(2026, 5, 20, tzinfo=UTC), datetime(2026, 4, 1, tzinfo=UTC)],
+            False,
+        ),  # coverage reaches back
+    ],
+)
 def test_coverage_gap_boundaries(dates, expect_gap):
     from tradingagents.dataflows.date_window import coverage_gap
 
@@ -223,17 +230,26 @@ def test_ticker_news_null_feed_is_handled(monkeypatch):
 
 
 def _tagged(title, day, *tickers):
-    return {"title": title, "publisher": "P", "link": "l",
-            "providerPublishTime": _epoch(day), "relatedTickers": list(tickers)}
+    return {
+        "title": title,
+        "publisher": "P",
+        "link": "l",
+        "providerPublishTime": _epoch(day),
+        "relatedTickers": list(tickers),
+    }
 
 
 @pytest.mark.unit
 def test_an_empty_quote_feed_falls_back_to_the_articles_search_tags_with_the_symbol(monkeypatch):
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    searched = _ticker_with([], monkeypatch, search_news=[
-        _tagged("ABOUT AAPL", today, "AAPL", "MSFT"),
-        _tagged("ABOUT GIS", today, "GIS"),
-    ])
+    searched = _ticker_with(
+        [],
+        monkeypatch,
+        search_news=[
+            _tagged("ABOUT AAPL", today, "AAPL", "MSFT"),
+            _tagged("ABOUT GIS", today, "GIS"),
+        ],
+    )
     out = ynews.get_news_yfinance("AAPL", today, today)
     assert searched == ["AAPL"]
     assert "ABOUT AAPL" in out and "ABOUT GIS" not in out
@@ -274,9 +290,15 @@ def test_a_yahoo_news_outage_moves_to_the_next_configured_vendor(monkeypatch):
     saved = dict(get_config()["data_vendors"])
     set_config({"data_vendors": {**saved, "news_data": "yfinance,alpha_vantage"}})
     try:
-        with patch.dict(router.VENDOR_METHODS, {"get_news": {
-            "yfinance": ynews.get_news_yfinance, "alpha_vantage": other_vendor,
-        }}):
+        with patch.dict(
+            router.VENDOR_METHODS,
+            {
+                "get_news": {
+                    "yfinance": ynews.get_news_yfinance,
+                    "alpha_vantage": other_vendor,
+                }
+            },
+        ):
             out = router.route_to_vendor("get_news", "AAPL", "2026-10-01", "2026-10-02")
     finally:
         set_config({"data_vendors": saved})
@@ -288,9 +310,14 @@ def test_search_results_never_count_as_an_absence_of_news(monkeypatch):
     # Search returns a sparse, relevance-picked sample: nothing in a window it
     # reaches is still no proof that no news was published.
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    _ticker_with([], monkeypatch, search_news=[
-        _tagged("NEWER", today, "AAPL"), _tagged("OLDER", "2026-01-05", "AAPL"),
-    ])
+    _ticker_with(
+        [],
+        monkeypatch,
+        search_news=[
+            _tagged("NEWER", today, "AAPL"),
+            _tagged("OLDER", "2026-01-05", "AAPL"),
+        ],
+    )
     out = ynews.get_news_yfinance("AAPL", "2026-03-01", "2026-03-08")
     assert "No news found" not in out
     assert "unavailable" in out and "not an absence" in out
@@ -304,8 +331,12 @@ def test_a_symbol_yahoo_has_no_articles_for_is_left_to_the_next_vendor(monkeypat
     from tradingagents.dataflows.errors import VendorUnavailableError
 
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    _ticker_with([], monkeypatch, search_quotes=("SHEL.L",),
-                 search_news=[_tagged("ABOUT SHEL", today, "SHEL")])
+    _ticker_with(
+        [],
+        monkeypatch,
+        search_quotes=("SHEL.L",),
+        search_news=[_tagged("ABOUT SHEL", today, "SHEL")],
+    )
     with pytest.raises(VendorUnavailableError, match="SHEL.L"):
         ynews.get_news_yfinance("SHEL.L", today, today)
 
@@ -320,8 +351,9 @@ def test_search_tags_are_matched_whatever_their_case(monkeypatch):
 @pytest.mark.unit
 def test_a_search_with_articles_has_answered_even_without_listing_the_symbol(monkeypatch):
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    _ticker_with([], monkeypatch, search_quotes=(),
-                 search_news=[_tagged("ABOUT AAPL", today, "AAPL")])
+    _ticker_with(
+        [], monkeypatch, search_quotes=(), search_news=[_tagged("ABOUT AAPL", today, "AAPL")]
+    )
     assert "ABOUT AAPL" in ynews.get_news_yfinance("AAPL", today, today)
 
 
@@ -330,10 +362,11 @@ def test_a_search_yahoo_answers_with_not_found_is_an_outage(monkeypatch):
     from tradingagents.dataflows.errors import VendorUnavailableError
 
     _ticker_with([], monkeypatch)
-    monkeypatch.setattr(ynews, "yf_retry", lambda fn: [] if "get_news" in repr(fn.__code__.co_names) else None)
+    monkeypatch.setattr(
+        ynews, "yf_retry", lambda fn: [] if "get_news" in repr(fn.__code__.co_names) else None
+    )
     with pytest.raises(VendorUnavailableError):
         ynews.get_news_yfinance("AAPL", "2026-10-01", "2026-10-02")
-
 
 
 @pytest.mark.unit
@@ -378,6 +411,7 @@ def test_coverage_gap_future_window_is_unavailable():
     from datetime import timedelta
 
     from tradingagents.dataflows.date_window import coverage_gap
+
     today = datetime.now(UTC).date()
     out = coverage_gap([], str(today), str(today + timedelta(days=3)), "Feed", "items")
     assert out is not None and "past today" in out
@@ -454,8 +488,14 @@ def test_the_article_limit_still_caps_what_is_returned(monkeypatch):
 @pytest.mark.parametrize("field", ["title", "summary", "provider", "canonicalUrl", "pubDate"])
 def test_an_article_with_a_null_field_is_read_with_its_default(field):
     """Yahoo sends some fields as null rather than leaving them out (#1458)."""
-    content = {"title": "T", "summary": "S", "provider": {"displayName": "P"},
-               "canonicalUrl": {"url": "https://x"}, "pubDate": "2026-09-22T10:00:00Z", field: None}
+    content = {
+        "title": "T",
+        "summary": "S",
+        "provider": {"displayName": "P"},
+        "canonicalUrl": {"url": "https://x"},
+        "pubDate": "2026-09-22T10:00:00Z",
+        field: None,
+    }
     data = ynews._extract_article_data({"content": content})
     assert isinstance(data["title"], str) and isinstance(data["summary"], str)
     assert isinstance(data["publisher"], str) and isinstance(data["link"], str)
@@ -464,17 +504,37 @@ def test_an_article_with_a_null_field_is_read_with_its_default(field):
 @pytest.mark.unit
 @pytest.mark.parametrize("field", ["title", "summary", "publisher", "link"])
 def test_a_flat_article_with_a_null_field_is_read_with_its_default(field):
-    data = ynews._extract_article_data({"title": "T", "summary": "S", "publisher": "P", "link": "L",
-                                        "providerPublishTime": _epoch("2026-09-22"), field: None})
+    data = ynews._extract_article_data(
+        {
+            "title": "T",
+            "summary": "S",
+            "publisher": "P",
+            "link": "L",
+            "providerPublishTime": _epoch("2026-09-22"),
+            field: None,
+        }
+    )
     assert all(isinstance(data[k], str) for k in ("title", "summary", "publisher", "link"))
 
 
 @pytest.mark.unit
 def test_one_malformed_article_does_not_lose_the_feed(monkeypatch):
-    good = {"content": {"title": "Kept", "summary": "", "provider": {"displayName": "Wire"},
-                        "pubDate": "2026-09-22T10:00:00Z"}}
-    bad = {"content": {"title": "Also kept", "summary": None, "provider": None,
-                       "pubDate": "2026-09-22T11:00:00Z"}}
+    good = {
+        "content": {
+            "title": "Kept",
+            "summary": "",
+            "provider": {"displayName": "Wire"},
+            "pubDate": "2026-09-22T10:00:00Z",
+        }
+    }
+    bad = {
+        "content": {
+            "title": "Also kept",
+            "summary": None,
+            "provider": None,
+            "pubDate": "2026-09-22T11:00:00Z",
+        }
+    }
     _ticker_with([good, bad], monkeypatch)
     out = ynews.get_news_yfinance("ZS", "2026-09-20", "2026-09-23")
     assert "Kept" in out and "Also kept" in out

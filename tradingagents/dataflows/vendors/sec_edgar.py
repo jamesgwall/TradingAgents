@@ -50,12 +50,19 @@ _STATEMENTS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
         ("Cash and Equivalents", ("CashAndCashEquivalentsAtCarryingValue",)),
         ("Total Liabilities", ("Liabilities",)),
         ("Current Liabilities", ("LiabilitiesCurrent",)),
-        ("Stockholders Equity", ("StockholdersEquity",
-                                 "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest")),
+        (
+            "Stockholders Equity",
+            (
+                "StockholdersEquity",
+                "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            ),
+        ),
     ],
     "income_statement": [
-        ("Revenue", ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues",
-                     "SalesRevenueNet")),
+        (
+            "Revenue",
+            ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+        ),
         ("Cost of Revenue", ("CostOfRevenue", "CostOfGoodsAndServicesSold")),
         ("Gross Profit", ("GrossProfit",)),
         ("Operating Income", ("OperatingIncomeLoss",)),
@@ -63,12 +70,19 @@ _STATEMENTS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
         ("Diluted EPS", ("EarningsPerShareDiluted",)),
     ],
     "cashflow": [
-        ("Operating Cash Flow", ("NetCashProvidedByUsedInOperatingActivities",
-                                 "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations")),
+        (
+            "Operating Cash Flow",
+            (
+                "NetCashProvidedByUsedInOperatingActivities",
+                "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+            ),
+        ),
         ("Investing Cash Flow", ("NetCashProvidedByUsedInInvestingActivities",)),
         ("Financing Cash Flow", ("NetCashProvidedByUsedInFinancingActivities",)),
-        ("Capital Expenditure", ("PaymentsToAcquirePropertyPlantAndEquipment",
-                                 "PaymentsToAcquireProductiveAssets")),
+        (
+            "Capital Expenditure",
+            ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"),
+        ),
     ],
 }
 
@@ -102,8 +116,6 @@ def _user_agent() -> str:
     return configured or f"TradingAgents/{__version__} (contact@example.com)"
 
 
-
-
 def _fetch_json(url: str) -> dict:
     """Read a public EDGAR document, respecting SEC's identification rule."""
     try:
@@ -114,7 +126,9 @@ def _fetch_json(url: str) -> dict:
         status = getattr(getattr(exc, "response", None), "status_code", None)
         # Every failure here is "this vendor cannot serve it now", so the router
         # moves on instead of seeing a transport exception it has no rule for.
-        raise VendorUnavailableError(f"SEC EDGAR request failed ({status or type(exc).__name__})") from exc
+        raise VendorUnavailableError(
+            f"SEC EDGAR request failed ({status or type(exc).__name__})"
+        ) from exc
     except ValueError as exc:
         raise VendorUnavailableError("SEC EDGAR returned an unreadable response") from exc
 
@@ -150,8 +164,13 @@ def _span_index(fact: dict, spans: tuple[tuple[int, int], ...]) -> int | None:
     return next((i for i, (low, high) in enumerate(spans) if low <= days <= high), None)
 
 
-def _as_of(facts: dict, tags: tuple[str, ...], as_of_date: str, spans: tuple[tuple[int, int], ...],
-           forms: tuple[str, ...] = ()) -> tuple[dict, str]:
+def _as_of(
+    facts: dict,
+    tags: tuple[str, ...],
+    as_of_date: str,
+    spans: tuple[tuple[int, int], ...],
+    forms: tuple[str, ...] = (),
+) -> tuple[dict, str]:
     """({(period end, span index): value}, unit) for the tags the filer reports, as known then.
 
     A period reported more than once takes its latest filing on or before the
@@ -169,7 +188,7 @@ def _as_of(facts: dict, tags: tuple[str, ...], as_of_date: str, spans: tuple[tup
     for tag in tags:
         for unit, unit_values in ((facts.get(tag) or {}).get("units", {})).items():
             latest: dict[tuple[str, int], dict] = {}
-            covered: set[tuple[str, int]] = set()   # periods a filing of ``forms`` reports
+            covered: set[tuple[str, int]] = set()  # periods a filing of ``forms`` reports
             for fact in unit_values:
                 index = _span_index(fact, spans)
                 key = (fact["end"], index)
@@ -205,7 +224,9 @@ def _statement(kind: str, ticker: str, freq: str, as_of_date: str, title: str) -
     else:
         spans, names = (_SPANS["annual"],), [""]
     forms = () if quarterly else _ANNUAL_FORMS
-    lines = {label: _as_of(us_gaap, tags, as_of_date, spans, forms) for label, tags in _STATEMENTS[kind]}
+    lines = {
+        label: _as_of(us_gaap, tags, as_of_date, spans, forms) for label, tags in _STATEMENTS[kind]
+    }
     # Each row takes the shortest span it reports for a period, and a column
     # holds one span of one period, so a row filed only to date keeps its figure
     # beside a row filed by quarter.
@@ -213,7 +234,9 @@ def _statement(kind: str, ticker: str, freq: str, as_of_date: str, title: str) -
     for label, (values, _) in lines.items():
         for end, index in values:
             chosen[label][end] = min(index, chosen[label].get(end, index))
-    periods = sorted({(end, index) for spans_of in chosen.values() for end, index in spans_of.items()})
+    periods = sorted(
+        {(end, index) for spans_of in chosen.values() for end, index in spans_of.items()}
+    )
     if not periods:
         raise NoMarketDataError(ticker, ticker, f"no {freq} {title.lower()} filed by {as_of_date}")
 
@@ -225,14 +248,18 @@ def _statement(kind: str, ticker: str, freq: str, as_of_date: str, title: str) -
     for label, (values, unit) in lines.items():
         # Every row spans the same columns, or a reader lines the table up wrong.
         if not values:
-            rows.append(",".join([label] + ["unavailable (not tagged by this filer)"] * len(periods)))
+            rows.append(
+                ",".join([label] + ["unavailable (not tagged by this filer)"] * len(periods))
+            )
             continue
         name = label if unit == "USD" else f"{label} ({unit})"
         # Plain numbers: a thousands separator would split the CSV field.
         cells = []
         for end, index in periods:
             value = values.get((end, index)) if chosen[label].get(end) == index else None
-            cells.append("" if value is None else f"{value / 1e6:.0f}" if unit == "USD" else f"{value:.2f}")
+            cells.append(
+                "" if value is None else f"{value / 1e6:.0f}" if unit == "USD" else f"{value:.2f}"
+            )
         rows.append(",".join([name] + cells))
     return header + "\n".join(rows) + "\n"
 
@@ -242,7 +269,9 @@ def get_balance_sheet(ticker: str, freq: str = "quarterly", as_of_date: str | No
     return _statement("balance_sheet", ticker, freq, as_of_date, "Balance Sheet")
 
 
-def get_income_statement(ticker: str, freq: str = "quarterly", as_of_date: str | None = None) -> str:
+def get_income_statement(
+    ticker: str, freq: str = "quarterly", as_of_date: str | None = None
+) -> str:
     """Income statement as filed on or before ``as_of_date``.
 
     A fourth quarter is never derived: filers report it only inside the annual

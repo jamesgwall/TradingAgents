@@ -25,7 +25,14 @@ calls: list = []
 @pytest.mark.unit
 def test_no_arguments_still_runs_an_analysis(runner):
     assert runner.invoke(m.app, []).exit_code == 0
-    no_flags = {"ticker": None, "date": None, "analysts": None, "save": None, "show": None, "html": None}
+    no_flags = {
+        "ticker": None,
+        "date": None,
+        "analysts": None,
+        "save": None,
+        "show": None,
+        "html": None,
+    }
     assert calls == [("analysis", {"checkpoint": None, "portfolio": None, "flags": no_flags})]
 
 
@@ -172,36 +179,108 @@ def test_backtest_shows_each_cell_and_how_to_continue(runner, monkeypatch, tmp_p
     monkeypatch.setattr(m, "run_backtest", sweep)
     monkeypatch.setattr(m, "summarize", lambda log: _Summary())
 
-    result = runner.invoke(m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-08"])
+    result = runner.invoke(
+        m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-08"]
+    )
 
     assert "[1/2] NVDA 2026-06-01" in result.output and "[2/2] NVDA 2026-06-08" in result.output
     assert f"--run-id {_Result(tmp_path).run_id}" in result.output
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("args, analysts", [
-    pytest.param(["--analysts", "sentiment,market"], ["market", "social"], id="named_as_in_analyze"),
-    pytest.param(["--asset-type", "crypto"], ["market", "social", "news"], id="crypto_default"),
-])
-def test_backtest_takes_its_analysts_as_an_analysis_does(runner, monkeypatch, tmp_path, args, analysts):
+@pytest.mark.parametrize(
+    "args, analysts",
+    [
+        pytest.param(
+            ["--analysts", "sentiment,market"], ["market", "social"], id="named_as_in_analyze"
+        ),
+        pytest.param(["--asset-type", "crypto"], ["market", "social", "news"], id="crypto_default"),
+    ],
+)
+def test_backtest_takes_its_analysts_as_an_analysis_does(
+    runner, monkeypatch, tmp_path, args, analysts
+):
     swept = []
     monkeypatch.setattr(m, "run_backtest", lambda *a, **kw: swept.append(kw) or _Result(tmp_path))
     monkeypatch.setattr(m, "summarize", lambda log: _Summary())
 
-    result = runner.invoke(m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-01", *args])
+    result = runner.invoke(
+        m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-01", *args]
+    )
 
     assert result.exit_code == 0, result.output
     assert swept[0]["selected_analysts"] == analysts
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("args", [
-    pytest.param(["--analysts", "fundamentals", "--asset-type", "crypto"], id="unavailable_for_crypto"),
-    pytest.param(["--asset-type", "bond"], id="unknown_asset_type"),
-])
+@pytest.mark.parametrize(
+    "args",
+    [
+        pytest.param(
+            ["--analysts", "fundamentals", "--asset-type", "crypto"], id="unavailable_for_crypto"
+        ),
+        pytest.param(["--asset-type", "bond"], id="unknown_asset_type"),
+    ],
+)
 def test_backtest_refuses_a_selection_before_the_sweep(runner, monkeypatch, args):
     monkeypatch.setattr(m, "run_backtest", lambda *a, **kw: pytest.fail("the sweep started"))
 
-    result = runner.invoke(m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-01", *args])
+    result = runner.invoke(
+        m.app, ["backtest", "NVDA", "--start", "2026-06-01", "--end", "2026-06-01", *args]
+    )
 
     assert result.exit_code == 1
+
+
+@pytest.mark.unit
+def test_login_and_logout_chatgpt_do_not_run_an_analysis(runner, monkeypatch):
+    from tradingagents.llm_clients import chatgpt_auth
+
+    monkeypatch.setattr(chatgpt_auth, "sign_in", lambda say: "a@example.com")
+    monkeypatch.setattr(chatgpt_auth, "sign_out", lambda: "revoked")
+    signed_in = runner.invoke(m.app, ["login", "chatgpt"])
+    assert signed_in.exit_code == 0 and "Signed in to ChatGPT as a@example.com" in signed_in.output
+    signed_out = runner.invoke(m.app, ["logout", "chatgpt"])
+    assert signed_out.exit_code == 0 and "Signed out of ChatGPT" in signed_out.output
+    assert runner.invoke(m.app, ["login", "claude"]).exit_code != 0
+    assert calls == []
+
+
+@pytest.mark.unit
+def test_a_failed_login_exits_with_the_reason(runner, monkeypatch):
+    from tradingagents.llm_clients import chatgpt_auth
+
+    def refuse(say):
+        raise chatgpt_auth.ChatGPTAuthError("Signing in with ChatGPT timed out")
+
+    monkeypatch.setattr(chatgpt_auth, "sign_in", refuse)
+    result = runner.invoke(m.app, ["login", "chatgpt"])
+    assert result.exit_code == 1 and "timed out" in result.output
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "outcome, said",
+    [
+        (None, "Not signed in"),
+        ("forgotten", "could not be reached to revoke"),
+    ],
+)
+def test_logout_says_whether_openai_revoked_the_sign_in(runner, monkeypatch, outcome, said):
+    from tradingagents.llm_clients import chatgpt_auth
+
+    monkeypatch.setattr(chatgpt_auth, "sign_out", lambda: outcome)
+    result = runner.invoke(m.app, ["logout", "chatgpt"])
+    assert result.exit_code == 0 and said in " ".join(result.output.split())
+
+
+@pytest.mark.unit
+def test_a_failure_message_with_brackets_is_printed_as_text(runner, monkeypatch):
+    from tradingagents.llm_clients import chatgpt_auth
+
+    def refuse(say):
+        raise chatgpt_auth.ChatGPTAuthError("ChatGPT sign-in failed ([/bogus]); sign in again.")
+
+    monkeypatch.setattr(chatgpt_auth, "sign_in", refuse)
+    result = runner.invoke(m.app, ["login", "chatgpt"])
+    assert result.exit_code == 1 and "[/bogus]" in result.output

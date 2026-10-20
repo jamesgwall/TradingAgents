@@ -32,7 +32,7 @@ def get_language_instruction() -> str:
     # search, where a negated rating ("not a Sell") reads as the call (#1435).
     return (
         f" Write your entire response in {lang}, except the labelled lines the format"
-        f" asks for (the \"**Rating**:\" line, \"FINAL TRANSACTION PROPOSAL:\"):"
+        f' asks for (the "**Rating**:" line, "FINAL TRANSACTION PROPOSAL:"):'
         f" keep their label and value in English, exactly as specified."
     )
 

@@ -67,6 +67,7 @@ class TestCleanDataframeAcrossVersions:
         """stockstats must compute indicators on a frame whose date column
         arrived as `index`, instead of erroring per indicator."""
         from stockstats import wrap
+
         cleaned = ohlcv._clean_dataframe(_ohlcv("index"))
         df = wrap(cleaned)
         df["close_5_sma"]  # triggers calculation

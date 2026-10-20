@@ -50,8 +50,14 @@ def post(monkeypatch):
 
 
 def _ok():
-    return _Response(200, {"model": "jev-1.13.0", "answers": ANSWERS,
-                           "usage": {"input_tokens": 296, "output_tokens": 20}})
+    return _Response(
+        200,
+        {
+            "model": "jev-1.13.0",
+            "answers": ANSWERS,
+            "usage": {"input_tokens": 296, "output_tokens": 20},
+        },
+    )
 
 
 @pytest.mark.unit
@@ -63,8 +69,11 @@ def test_sends_the_documented_request_and_returns_the_answers(post):
     url, kwargs = post[0]
     assert url == "https://api.typesafe.ai/v1/systemone"
     assert kwargs["headers"]["Authorization"] == "Bearer ts-test"
-    assert kwargs["json"] == {"state": "Help! My payouts have been failing.",
-                              "model": "jev-latest", "questions": QUESTIONS}
+    assert kwargs["json"] == {
+        "state": "Help! My payouts have been failing.",
+        "model": "jev-latest",
+        "questions": QUESTIONS,
+    }
 
 
 @pytest.mark.unit
@@ -98,10 +107,16 @@ def test_a_base_url_without_a_key_does_not_turn_screening_on(monkeypatch):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("transient", [
-    _Response(429), _Response(529), requests.ConnectionError(), requests.Timeout(),
-    requests.exceptions.ChunkedEncodingError(),
-])
+@pytest.mark.parametrize(
+    "transient",
+    [
+        _Response(429),
+        _Response(529),
+        requests.ConnectionError(),
+        requests.Timeout(),
+        requests.exceptions.ChunkedEncodingError(),
+    ],
+)
 def test_rate_limits_overload_and_dropped_connections_are_retried(post, transient):
     post.queue.extend([transient, _ok()])
 
@@ -137,7 +152,9 @@ def test_retries_are_bounded(post):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("error", [requests.exceptions.InvalidHeader(), requests.exceptions.TooManyRedirects()])
+@pytest.mark.parametrize(
+    "error", [requests.exceptions.InvalidHeader(), requests.exceptions.TooManyRedirects()]
+)
 def test_other_request_errors_are_screening_failures_without_retry(post, error):
     post.queue.append(error)
 
@@ -157,10 +174,15 @@ def test_other_failures_raise_without_retry(post, status):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("payload", [
-    None, {"model": "jev"}, {"answers": {"other": {}}},
-    {"answers": {"is_urgent": {"type": "choice", "choice": "yes"}}},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {"model": "jev"},
+        {"answers": {"other": {}}},
+        {"answers": {"is_urgent": {"type": "choice", "choice": "yes"}}},
+    ],
+)
 def test_a_response_without_every_answer_is_an_error(post, payload):
     post.queue.append(_Response(200, payload))
 
@@ -168,13 +190,22 @@ def test_a_response_without_every_answer_is_an_error(post, payload):
         typesafe.system_one("s", QUESTIONS)
 
 
-
 def _post_answers(about: float, stance: str = "bullish", confidence: float = 0.9):
-    return _Response(200, {"model": "jev-1.13.0", "answers": {
-        "about": {"type": "noul", "noul": about},
-        "stance": {"type": "choice", "choice": stance, "confidence": confidence,
-                   "probabilities": {stance: 1.0}},
-    }})
+    return _Response(
+        200,
+        {
+            "model": "jev-1.13.0",
+            "answers": {
+                "about": {"type": "noul", "noul": about},
+                "stance": {
+                    "type": "choice",
+                    "choice": stance,
+                    "confidence": confidence,
+                    "probabilities": {stance: 1.0},
+                },
+            },
+        },
+    )
 
 
 @pytest.fixture
@@ -187,8 +218,9 @@ def jev(post, monkeypatch):
         return answers[kwargs["json"]["state"]["post"]]
 
     monkeypatch.setattr(typesafe.requests, "post", fake_post)
-    monkeypatch.setattr(typesafe, "resolve_instrument_identity",
-                        lambda t: {"company_name": "NVIDIA Corporation"})
+    monkeypatch.setattr(
+        typesafe, "resolve_instrument_identity", lambda t: {"company_name": "NVIDIA Corporation"}
+    )
     return answers
 
 
@@ -211,20 +243,24 @@ def test_each_post_is_its_own_state_under_the_fixed_questions(jev, post):
 
 @pytest.mark.unit
 def test_screen_drops_clear_off_topic_posts_and_counts_confident_stances(jev):
-    jev.update({
-        "long NVDA": _post_answers(0.95, "bullish"),
-        "NVDA puts": _post_answers(0.9, "bearish"),
-        "maybe NVDA": _post_answers(0.4, "neutral"),       # uncertain relevance: kept
-        "NVDA?": _post_answers(0.8, "bullish", 0.3),       # uncertain stance: unclear
-        "NVDA!": _post_answers(0.8, "sideways"),           # not an option: unclear
-        "$AAPL $MSFT $NVDA pump": _post_answers(0.1, "bullish"),
-    })
+    jev.update(
+        {
+            "long NVDA": _post_answers(0.95, "bullish"),
+            "NVDA puts": _post_answers(0.9, "bearish"),
+            "maybe NVDA": _post_answers(0.4, "neutral"),  # uncertain relevance: kept
+            "NVDA?": _post_answers(0.8, "bullish", 0.3),  # uncertain stance: unclear
+            "NVDA!": _post_answers(0.8, "sideways"),  # not an option: unclear
+            "$AAPL $MSFT $NVDA pump": _post_answers(0.1, "bullish"),
+        }
+    )
 
     keep, note = typesafe.jev_screen("NVDA")(list(jev))
 
     assert keep == [True, True, True, True, True, False]
-    assert note == ("Screened by Jev: 5 of the 6 posts fetched are about NVIDIA Corporation (NVDA); "
-                    "their stance on its stock: 1 bullish, 1 bearish, 1 neutral, 2 unclear.")
+    assert note == (
+        "Screened by Jev: 5 of the 6 posts fetched are about NVIDIA Corporation (NVDA); "
+        "their stance on its stock: 1 bullish, 1 bearish, 1 neutral, 2 unclear."
+    )
 
 
 @pytest.mark.unit
@@ -239,8 +275,9 @@ def test_one_failed_request_leaves_every_post_unscreened(jev):
 
 @pytest.mark.unit
 def test_an_answer_missing_its_fields_reads_as_malformed(jev):
-    jev["a"] = _Response(200, {"answers": {"about": {"type": "noul"},
-                                           "stance": {"type": "choice"}}})
+    jev["a"] = _Response(
+        200, {"answers": {"about": {"type": "noul"}, "stance": {"type": "choice"}}}
+    )
 
     keep, note = typesafe.jev_screen("NVDA")(["a"])
 
@@ -269,7 +306,9 @@ def test_the_sentiment_analyst_hands_the_screen_to_both_social_fetchers(monkeypa
     monkeypatch.setattr(sentiment_analyst, "jev_screen", lambda ticker: screen)
     monkeypatch.setattr(sentiment_analyst.get_news, "func", lambda *a: "news")
     for name in ("fetch_stocktwits_messages", "fetch_reddit_posts"):
-        monkeypatch.setattr(sentiment_analyst, name, lambda *a, screen=None, **k: seen.append(screen) or "")
+        monkeypatch.setattr(
+            sentiment_analyst, name, lambda *a, screen=None, **k: seen.append(screen) or ""
+        )
 
     class _LLM:
         def with_structured_output(self, *a, **k):

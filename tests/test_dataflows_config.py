@@ -63,6 +63,7 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
 
 # --- the config of the run in progress (#1369) --------------------------------
 
+
 def _graph(config):
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
@@ -92,7 +93,7 @@ def test_a_run_reads_its_own_graphs_vendors_not_the_last_graph_built():
     a second graph built with the defaults was served the first one's vendors."""
     first = copy.deepcopy(default_config.DEFAULT_CONFIG)
     first["tool_vendors"] = {"get_balance_sheet": "sec_edgar,yfinance"}
-    set_config(first)                                   # graph A is built
+    set_config(first)  # graph A is built
     second = _graph(copy.deepcopy(default_config.DEFAULT_CONFIG))
 
     assert _vendors_seen_by_a_run(second) == ["sec_edgar,yfinance"]
@@ -105,7 +106,7 @@ def test_a_graph_built_earlier_still_runs_with_its_own_config():
     a_config = copy.deepcopy(default_config.DEFAULT_CONFIG)
     a_config["tool_vendors"] = {"get_balance_sheet": "sec_edgar,yfinance"}
     a = _graph(a_config)
-    set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))   # graph B is built
+    set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))  # graph B is built
 
     assert _vendors_seen_by_a_run(a) == ["sec_edgar,yfinance"]
 
@@ -124,15 +125,17 @@ def test_concurrent_runs_each_read_their_own_config():
         from tradingagents.dataflows.router import get_vendor
 
         def _run(*a, **k):
-            barrier.wait(timeout=5)                     # both runs are in flight
+            barrier.wait(timeout=5)  # both runs are in flight
             results[name] = get_vendor("fundamental_data", "get_balance_sheet")
             return {}, "Hold"
 
         graph._run_graph = _run
         graph.propagate("AAPL", "2026-09-01")
 
-    threads = [threading.Thread(target=run, args=("a", "alpha_vantage")),
-               threading.Thread(target=run, args=("b", "sec_edgar,yfinance"))]
+    threads = [
+        threading.Thread(target=run, args=("a", "alpha_vantage")),
+        threading.Thread(target=run, args=("b", "sec_edgar,yfinance")),
+    ]
     [t.start() for t in threads]
     [t.join() for t in threads]
 
@@ -146,12 +149,15 @@ def test_settling_reads_the_graphs_own_config(monkeypatch):
     config = copy.deepcopy(default_config.DEFAULT_CONFIG)
     config["tool_vendors"] = {"get_stock_data": "alpha_vantage"}
     graph = _graph(config)
-    graph.memory_log = graph.reflector = None      # the settlement below is a stand-in
+    graph.memory_log = graph.reflector = None  # the settlement below is a stand-in
     seen = []
     from tradingagents.memory import settlement
 
-    monkeypatch.setattr(settlement, "settle_pending",
-                        lambda *a: seen.append(get_vendor("core_stock_apis", "get_stock_data")))
+    monkeypatch.setattr(
+        settlement,
+        "settle_pending",
+        lambda *a: seen.append(get_vendor("core_stock_apis", "get_stock_data")),
+    )
 
     graph.settle_pending("AAPL")
 
@@ -200,4 +206,7 @@ def test_a_run_config_missing_a_newer_key_still_reads_the_default():
     config = copy.deepcopy(default_config.DEFAULT_CONFIG)
     del config["news_article_limit"]
     with run_config(config):
-        assert get_config()["news_article_limit"] == default_config.DEFAULT_CONFIG["news_article_limit"]
+        assert (
+            get_config()["news_article_limit"]
+            == default_config.DEFAULT_CONFIG["news_article_limit"]
+        )

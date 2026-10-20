@@ -16,15 +16,24 @@ TODAY = "2026-09-26"
 
 
 def _fundamentals(info):
-    with mock.patch.object(date_window, "get_current_date", return_value=TODAY), \
-         mock.patch.object(fundamentals, "yf_retry", lambda fn: info):
+    with (
+        mock.patch.object(date_window, "get_current_date", return_value=TODAY),
+        mock.patch.object(fundamentals, "yf_retry", lambda fn: info),
+    ):
         return fundamentals.get_fundamentals("AAPL", TODAY)
 
 
 @pytest.mark.unit
 def test_percent_fields_carry_their_unit_and_fractions_are_unchanged():
-    out = _fundamentals({"longName": "Apple Inc.", "dividendYield": 0.32, "debtToEquity": 78.445,
-                         "profitMargins": 0.27619, "returnOnEquity": 1.4875101})
+    out = _fundamentals(
+        {
+            "longName": "Apple Inc.",
+            "dividendYield": 0.32,
+            "debtToEquity": 78.445,
+            "profitMargins": 0.27619,
+            "returnOnEquity": 1.4875101,
+        }
+    )
 
     assert "Dividend Yield: 0.32%" in out
     assert "Debt to Equity: 78.445% (0.78x)" in out
@@ -43,10 +52,20 @@ def test_an_absent_percent_field_is_left_out():
 def test_each_money_figure_carries_the_currency_it_is_in():
     """Yahoo quotes London in pence but states EPS and market cap in pounds, and
     the income figures in the reporting currency (#1456)."""
-    out = _fundamentals({"longName": "Shell plc", "currency": "GBp", "financialCurrency": "USD",
-                         "marketCap": 203440193536, "trailingEps": 3.42, "bookValue": 29.1,
-                         "fiftyTwoWeekHigh": 3800.0, "fiftyDayAverage": 3500.5,
-                         "totalRevenue": 296600993792, "netIncomeToCommon": 25970999296})
+    out = _fundamentals(
+        {
+            "longName": "Shell plc",
+            "currency": "GBp",
+            "financialCurrency": "USD",
+            "marketCap": 203440193536,
+            "trailingEps": 3.42,
+            "bookValue": 29.1,
+            "fiftyTwoWeekHigh": 3800.0,
+            "fiftyDayAverage": 3500.5,
+            "totalRevenue": 296600993792,
+            "netIncomeToCommon": 25970999296,
+        }
+    )
 
     assert "Market Cap: 203440193536 GBP" in out
     assert "EPS (TTM): 3.42 GBP" in out and "Book Value: 29.1 GBP" in out
@@ -56,8 +75,16 @@ def test_each_money_figure_carries_the_currency_it_is_in():
 
 @pytest.mark.unit
 def test_an_adr_quotes_in_dollars_and_reports_in_its_home_currency():
-    out = _fundamentals({"longName": "TSMC", "currency": "USD", "financialCurrency": "TWD",
-                         "marketCap": 2365000000000, "trailingEps": 13.21, "totalRevenue": 4440492343296})
+    out = _fundamentals(
+        {
+            "longName": "TSMC",
+            "currency": "USD",
+            "financialCurrency": "TWD",
+            "marketCap": 2365000000000,
+            "trailingEps": 13.21,
+            "totalRevenue": 4440492343296,
+        }
+    )
 
     assert "Market Cap: 2365000000000 USD" in out and "EPS (TTM): 13.21 USD" in out
     assert "Revenue (TTM): 4440492343296 TWD" in out

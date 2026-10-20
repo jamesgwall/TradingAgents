@@ -25,12 +25,14 @@ def test_qwen_embedding_request(monkeypatch):
 
     monkeypatch.setattr(transcript_store.urllib.request, "urlopen", fake_urlopen)
     assert len(transcript_store._embed_text("AAPL macro outlook", "http://localhost:11434")) == 1024
-    assert requests == [{
-        "model": "qwen3-embedding:latest",
-        "input": ["AAPL macro outlook"],
-        "dimensions": 1024,
-        "options": {"num_ctx": 4096},
-    }]
+    assert requests == [
+        {
+            "model": "qwen3-embedding:latest",
+            "input": ["AAPL macro outlook"],
+            "dimensions": 1024,
+            "options": {"num_ctx": 4096},
+        }
+    ]
 
 
 def test_qwen_embedding_retries_model_swap_timeout(monkeypatch):

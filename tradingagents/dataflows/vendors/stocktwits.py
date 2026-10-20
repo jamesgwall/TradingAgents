@@ -127,7 +127,9 @@ def fetch_stocktwits_messages(
         screened = len(messages)
         messages = [m for m, kept in zip(messages, keep, strict=True) if kept]
         if not messages:
-            return f"{note}\n\n<none of the {screened} StockTwits messages is about ${ticker.upper()}>"
+            return (
+                f"{note}\n\n<none of the {screened} StockTwits messages is about ${ticker.upper()}>"
+            )
 
     lines = []
     bullish = bearish = unlabeled = 0

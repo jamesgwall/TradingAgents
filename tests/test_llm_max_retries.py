@@ -78,6 +78,7 @@ def test_invalid_config_value_fails_loudly():
 
 # --- env overlay -----------------------------------------------------------
 
+
 def _config_with_env(monkeypatch, **overrides):
     """The defaults as the environment given here would set them."""
     for key in list(default_config_module._ENV_OVERRIDES):
