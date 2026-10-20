@@ -79,6 +79,7 @@ def test_case_insensitive_lookup():
 def prompts():
     """cli.prompts, which reads the environment when it is called."""
     import cli.prompts as prompts_module
+
     return prompts_module
 
 

@@ -4,7 +4,6 @@ Temperature is a cross-provider knob: when set it must reach the underlying
 chat client; when unset the provider keeps its own default.
 """
 
-
 import pytest
 
 from tradingagents.llm_clients.factory import create_llm_client
@@ -61,6 +60,7 @@ class TestProviderKwargsTemperature:
 
     def _kwargs_for(self, temperature):
         from tradingagents.llm_clients import build_llm_kwargs
+
         return build_llm_kwargs({"llm_provider": "openai", "temperature": temperature})
 
     def test_float_string_coerced(self):

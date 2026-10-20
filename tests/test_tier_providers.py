@@ -13,17 +13,26 @@ from tradingagents.llm_clients import factory
 
 
 def _config(**overrides):
-    config = {**default_config.DEFAULT_CONFIG, "llm_provider": "openai", "backend_url": "https://api.openai.com/v1",
-              "quick_think_llm": "gpt-6-luna", "deep_think_llm": "gpt-6-sol",
-              "openai_reasoning_effort": "low", "google_thinking_level": "high"}
+    config = {
+        **default_config.DEFAULT_CONFIG,
+        "llm_provider": "openai",
+        "backend_url": "https://api.openai.com/v1",
+        "quick_think_llm": "gpt-6-luna",
+        "deep_think_llm": "gpt-6-sol",
+        "openai_reasoning_effort": "low",
+        "google_thinking_level": "high",
+    }
     config.update(overrides)
     return config
 
 
 def _captured(monkeypatch):
     made = []
-    monkeypatch.setattr(factory, "create_llm_client",
-                        lambda provider, model, base_url=None, **kw: made.append((provider, model, base_url, kw)))
+    monkeypatch.setattr(
+        factory,
+        "create_llm_client",
+        lambda provider, model, base_url=None, **kw: made.append((provider, model, base_url, kw)),
+    )
     return made
 
 
@@ -42,19 +51,24 @@ def test_a_tier_without_its_own_provider_uses_the_run_s(monkeypatch):
 def test_a_tier_on_another_provider_gets_that_provider_s_settings_and_not_the_main_url(monkeypatch):
     made = _captured(monkeypatch)
 
-    factory.create_tier_client(_config(deep_think_provider="google", deep_think_llm="gemini-3.8-flash"), "deep")
+    factory.create_tier_client(
+        _config(deep_think_provider="google", deep_think_llm="gemini-3.8-flash"), "deep"
+    )
 
     provider, model, base_url, kw = made[0]
     assert (provider, model) == ("google", "gemini-3.8-flash")
-    assert base_url is None                       # the OpenAI URL must not follow it
+    assert base_url is None  # the OpenAI URL must not follow it
     assert kw["thinking_level"] == "high" and "reasoning_effort" not in kw
 
 
 @pytest.mark.unit
 def test_a_tier_url_is_used_for_that_tier_only(monkeypatch):
     made = _captured(monkeypatch)
-    config = _config(quick_think_provider="openai_compatible", quick_think_backend_url="http://localhost:8000/v1",
-                     quick_think_llm="local-model")
+    config = _config(
+        quick_think_provider="openai_compatible",
+        quick_think_backend_url="http://localhost:8000/v1",
+        quick_think_llm="local-model",
+    )
 
     factory.create_tier_client(config, "quick")
     factory.create_tier_client(config, "deep")
@@ -73,7 +87,10 @@ def test_the_run_settings_and_report_name_each_tier_s_provider():
     graph.config = _config(deep_think_provider="anthropic", deep_think_llm="claude-opus-5-5")
 
     settings = graph.run_settings()
-    assert settings["quick_think_provider"] == "openai" and settings["deep_think_provider"] == "anthropic"
+    assert (
+        settings["quick_think_provider"] == "openai"
+        and settings["deep_think_provider"] == "anthropic"
+    )
     header = _header("NVDA", {}, settings)
     assert "deep anthropic claude-opus-5-5" in header and "quick openai gpt-6-luna" in header
 

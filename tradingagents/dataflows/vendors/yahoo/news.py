@@ -65,7 +65,8 @@ def _search_news(canonical: str, limit: int) -> tuple[list, bool]:
     if search is None:  # Yahoo answered "not found": its search is down
         return [], False
     tagged = [
-        a for a in (search.news or [])
+        a
+        for a in (search.news or [])
         if canonical in (t.upper() for t in a.get("relatedTickers") or [])
     ]
     knows = any((q.get("symbol") or "").upper() == canonical for q in search.quotes or [])
@@ -124,12 +125,17 @@ def get_news_yfinance(
         return f"## {ticker}{resolved} News, from {start_date} to {end_date}:\n\n{_format_articles(in_range)}"
 
     if not feed:
-        return (f"<Yahoo Finance news unavailable for {start_date}..{end_date}: Yahoo search "
-                f"returns only a sample of recent articles about {canonical}, so this is not "
-                f"an absence of {subject}>")
+        return (
+            f"<Yahoo Finance news unavailable for {start_date}..{end_date}: Yahoo search "
+            f"returns only a sample of recent articles about {canonical}, so this is not "
+            f"an absence of {subject}>"
+        )
     gap = coverage_gap(
         (a["pub_date"] for a in articles),
-        start_date, end_date, "Yahoo Finance news", subject,
+        start_date,
+        end_date,
+        "Yahoo Finance news",
+        subject,
     )
     return gap or f"No news found for {ticker}{resolved} between {start_date} and {end_date}"
 
@@ -167,11 +173,15 @@ def get_global_news_yfinance(
     seen_titles = set()
 
     for query in search_queries:
-        found = yf_retry(lambda q=query: yf.Search(
-            query=q,
-            news_count=limit,
-            enable_fuzzy_query=True,
-        ).news)
+        found = yf_retry(
+            lambda q=query: (
+                yf.Search(
+                    query=q,
+                    news_count=limit,
+                    enable_fuzzy_query=True,
+                ).news
+            )
+        )
 
         for article in found or []:
             # Window first: the limit counts what the run may read, so an

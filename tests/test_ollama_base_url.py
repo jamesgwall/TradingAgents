@@ -22,6 +22,7 @@ def _console_out(capsys) -> str:
 
 def _client_module():
     import tradingagents.llm_clients.openai_client as mod
+
     return mod
 
 
@@ -86,6 +87,7 @@ def test_explicit_base_url_overrides_env(monkeypatch):
 def test_confirm_endpoint_shows_default(monkeypatch, capsys):
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     from cli import prompts
+
     prompts.confirm_ollama_endpoint("http://localhost:11434/v1")
     out = _console_out(capsys)
     assert "http://localhost:11434/v1" in out
@@ -96,6 +98,7 @@ def test_confirm_endpoint_shows_default(monkeypatch, capsys):
 def test_confirm_endpoint_marks_env_origin(monkeypatch, capsys):
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://remote-host:11434/v1")
     from cli import prompts
+
     prompts.confirm_ollama_endpoint("http://remote-host:11434/v1")
     out = _console_out(capsys)
     assert "http://remote-host:11434/v1" in out
@@ -106,6 +109,7 @@ def test_confirm_endpoint_warns_on_missing_scheme(monkeypatch, capsys):
     """If user sets OLLAMA_BASE_URL=0.0.0.128, advise on the expected shape."""
     monkeypatch.setenv("OLLAMA_BASE_URL", "0.0.0.128")
     from cli import prompts
+
     prompts.confirm_ollama_endpoint("0.0.0.128")
     out = _console_out(capsys)
     assert "missing a scheme" in out
@@ -116,6 +120,7 @@ def test_confirm_endpoint_warns_on_non_default_port_remote(monkeypatch, capsys):
     """A remote host with no :11434 gets a soft hint about port mismatch."""
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://remote-host/v1")
     from cli import prompts
+
     prompts.confirm_ollama_endpoint("http://remote-host/v1")
     out = _console_out(capsys)
     assert "port 11434" in out
@@ -125,6 +130,7 @@ def test_confirm_endpoint_quiet_on_local_no_port(monkeypatch, capsys):
     """Local host without port shouldn't trigger the remote-port hint."""
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost/v1")
     from cli import prompts
+
     prompts.confirm_ollama_endpoint("http://localhost/v1")
     out = _console_out(capsys)
     assert "Note" not in out  # localhost is fine without explicit port

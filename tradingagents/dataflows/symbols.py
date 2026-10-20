@@ -33,9 +33,30 @@ logger = logging.getLogger(__name__)
 # forex pair and given Yahoo's ``=X`` suffix.
 _FOREX_CURRENCIES = frozenset(
     {
-        "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD",
-        "CNY", "CNH", "HKD", "SGD", "SEK", "NOK", "DKK", "PLN",
-        "MXN", "ZAR", "TRY", "INR", "KRW", "BRL", "RUB", "THB",
+        "USD",
+        "EUR",
+        "GBP",
+        "JPY",
+        "CHF",
+        "CAD",
+        "AUD",
+        "NZD",
+        "CNY",
+        "CNH",
+        "HKD",
+        "SGD",
+        "SEK",
+        "NOK",
+        "DKK",
+        "PLN",
+        "MXN",
+        "ZAR",
+        "TRY",
+        "INR",
+        "KRW",
+        "BRL",
+        "RUB",
+        "THB",
     }
 )
 
@@ -50,21 +71,44 @@ _CRYPTO_BASES = frozenset(
 # adding rows — no call site changes required.
 _ALIASES = {
     # Precious metals (spot names -> COMEX/NYMEX futures)
-    "XAUUSD": "GC=F", "XAU": "GC=F", "GOLD": "GC=F",
-    "XAGUSD": "SI=F", "XAG": "SI=F", "SILVER": "SI=F",
-    "XPTUSD": "PL=F", "XPDUSD": "PA=F",
+    "XAUUSD": "GC=F",
+    "XAU": "GC=F",
+    "GOLD": "GC=F",
+    "XAGUSD": "SI=F",
+    "XAG": "SI=F",
+    "SILVER": "SI=F",
+    "XPTUSD": "PL=F",
+    "XPDUSD": "PA=F",
     # Energy
-    "WTICOUSD": "CL=F", "USOIL": "CL=F", "WTI": "CL=F",
-    "BCOUSD": "BZ=F", "UKOIL": "BZ=F", "BRENT": "BZ=F",
-    "NATGAS": "NG=F", "XNGUSD": "NG=F",
-    "COPPER": "HG=F", "XCUUSD": "HG=F",
+    "WTICOUSD": "CL=F",
+    "USOIL": "CL=F",
+    "WTI": "CL=F",
+    "BCOUSD": "BZ=F",
+    "UKOIL": "BZ=F",
+    "BRENT": "BZ=F",
+    "NATGAS": "NG=F",
+    "XNGUSD": "NG=F",
+    "COPPER": "HG=F",
+    "XCUUSD": "HG=F",
     # Index CFDs -> Yahoo index symbols
-    "SPX500": "^GSPC", "US500": "^GSPC", "SPX": "^GSPC",
-    "NAS100": "^NDX", "US100": "^NDX", "USTEC": "^NDX",
-    "US30": "^DJI", "DJI30": "^DJI", "WS30": "^DJI",
-    "GER40": "^GDAXI", "GER30": "^GDAXI", "DE40": "^GDAXI",
-    "UK100": "^FTSE", "JP225": "^N225", "JPN225": "^N225",
-    "FRA40": "^FCHI", "EU50": "^STOXX50E", "HK50": "^HSI",
+    "SPX500": "^GSPC",
+    "US500": "^GSPC",
+    "SPX": "^GSPC",
+    "NAS100": "^NDX",
+    "US100": "^NDX",
+    "USTEC": "^NDX",
+    "US30": "^DJI",
+    "DJI30": "^DJI",
+    "WS30": "^DJI",
+    "GER40": "^GDAXI",
+    "GER30": "^GDAXI",
+    "DE40": "^GDAXI",
+    "UK100": "^FTSE",
+    "JP225": "^N225",
+    "JPN225": "^N225",
+    "FRA40": "^FCHI",
+    "EU50": "^STOXX50E",
+    "HK50": "^HSI",
 }
 
 # HKEX codes as Yahoo spells them: the number zero-padded to 4 digits (#957).
@@ -169,9 +213,7 @@ def safe_ticker_component(value: str, *, max_len: int = 32) -> str:
     if len(value) > max_len:
         raise ValueError(f"ticker exceeds {max_len} chars: {value!r}")
     if not _TICKER_PATH_RE.fullmatch(value):
-        raise ValueError(
-            f"ticker contains characters not allowed in a filesystem path: {value!r}"
-        )
+        raise ValueError(f"ticker contains characters not allowed in a filesystem path: {value!r}")
     # The regex above allows '.', so values like '.', '..', '...' would pass,
     # and as a path component they traverse the parent directory. Reject any
     # value that's only dots.
@@ -238,7 +280,6 @@ _KNOWN_ETFS = frozenset(
         "VTV",
     }
 )
-
 
 
 def is_etf(symbol: str) -> bool:

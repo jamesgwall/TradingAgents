@@ -104,12 +104,16 @@ class FredConfigTests(unittest.TestCase):
 class FredFormattingTests(unittest.TestCase):
     def test_vendor_failure_returns_unavailable_without_aborting(self):
         for endpoint in ("series", "series/observations"):
+
             def fail_at(path, params, failing_endpoint=endpoint):
                 if path == failing_endpoint:
                     raise requests.Timeout("request timed out")
                 return _request_stub()(path, params)
 
-            with self.subTest(endpoint=endpoint), mock.patch.object(fred, "_request", side_effect=fail_at):
+            with (
+                self.subTest(endpoint=endpoint),
+                mock.patch.object(fred, "_request", side_effect=fail_at),
+            ):
                 self.assertIn("FRED data unavailable", fred.get_macro_data("cpi", "2025-09-30"))
 
     def test_missing_key_still_raises_from_report(self):
@@ -235,9 +239,7 @@ class FredRoutingTests(unittest.TestCase):
         config_module._config = copy.deepcopy(default_config.DEFAULT_CONFIG)
 
     def test_macro_category_routes_to_fred(self):
-        self.assertEqual(
-            router.get_category_for_method("get_macro_indicators"), "macro_data"
-        )
+        self.assertEqual(router.get_category_for_method("get_macro_indicators"), "macro_data")
         set_config({"data_vendors": {"macro_data": "fred"}})
         with mock.patch.dict(
             router.VENDOR_METHODS,
@@ -278,9 +280,11 @@ class TestKeyKeptOutOfErrors:
     its error messages, so any log or traceback would carry it (#1324)."""
 
     def _raises(self, side_effect):
-        with mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}), \
-             mock.patch("tradingagents.dataflows.net.requests.get", side_effect=side_effect), \
-             pytest.raises(requests.RequestException) as caught:
+        with (
+            mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}),
+            mock.patch("tradingagents.dataflows.net.requests.get", side_effect=side_effect),
+            pytest.raises(requests.RequestException) as caught,
+        ):
             fred._request("series", {"series_id": "DGS10"})
         return caught.value
 
@@ -290,9 +294,11 @@ class TestKeyKeptOutOfErrors:
             f"502 Server Error for url: https://api.stlouisfed.org/fred/series?api_key={_KEY}",
             response=response,
         )
-        with mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}), \
-             mock.patch("tradingagents.dataflows.net.requests.get", return_value=response), \
-             pytest.raises(requests.HTTPError) as caught:
+        with (
+            mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}),
+            mock.patch("tradingagents.dataflows.net.requests.get", return_value=response),
+            pytest.raises(requests.HTTPError) as caught,
+        ):
             fred._request("series", {"series_id": "DGS10"})
         exc = caught.value
         assert _KEY not in str(exc) and _KEY not in repr(exc)
@@ -316,8 +322,13 @@ def test_error_without_the_key_in_its_message_still_drops_the_request():
     import requests as rq
 
     req = rq.Request("GET", f"https://api.stlouisfed.org/fred/series?api_key={_KEY}").prepare()
-    with mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}), \
-         mock.patch("tradingagents.dataflows.net.requests.get", side_effect=rq.Timeout("Read timed out.", request=req)), \
-         pytest.raises(rq.Timeout) as caught:
+    with (
+        mock.patch.dict("os.environ", {"FRED_API_KEY": _KEY}),
+        mock.patch(
+            "tradingagents.dataflows.net.requests.get",
+            side_effect=rq.Timeout("Read timed out.", request=req),
+        ),
+        pytest.raises(rq.Timeout) as caught,
+    ):
         fred._request("series", {"series_id": "DGS10"})
     assert caught.value.request is None

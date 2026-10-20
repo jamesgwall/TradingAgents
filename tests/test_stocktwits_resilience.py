@@ -80,11 +80,17 @@ class TestStockTwitsCryptoSymbols:
 
 
 def _stream(*bodies):
-    payload = {"messages": [
-        {"body": b, "created_at": "2026-01-09T15:00:00Z", "user": {"username": "u"},
-         "entities": {"sentiment": {"basic": "Bullish"}}}
-        for b in bodies
-    ]}
+    payload = {
+        "messages": [
+            {
+                "body": b,
+                "created_at": "2026-01-09T15:00:00Z",
+                "user": {"username": "u"},
+                "entities": {"sentiment": {"basic": "Bullish"}},
+            }
+            for b in bodies
+        ]
+    }
 
     class _Resp:
         def __enter__(self):
@@ -95,6 +101,7 @@ def _stream(*bodies):
 
         def read(self):
             return json.dumps(payload).encode()
+
     return _Resp()
 
 

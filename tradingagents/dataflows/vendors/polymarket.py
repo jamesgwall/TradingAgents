@@ -9,6 +9,7 @@ Uses Polymarket's public Gamma API (https://gamma-api.polymarket.com) — no key
 no auth. Each market's ``outcomePrices`` are the implied probabilities of its
 outcomes (a "Yes" at 0.76 means the market prices a 76% chance).
 """
+
 import json
 import logging
 from datetime import UTC, datetime
@@ -29,9 +30,7 @@ DEFAULT_LIMIT = 6
 
 
 def _request(path: str, params: dict) -> dict:
-    response = requests.get(
-        f"{GAMMA_BASE}/{path}", params=params, timeout=REQUEST_TIMEOUT
-    )
+    response = requests.get(f"{GAMMA_BASE}/{path}", params=params, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
     return response.json()
 
@@ -67,7 +66,9 @@ def _is_forward_looking(market: dict, now: datetime) -> bool:
     )
 
 
-def get_prediction_markets(topic: str, limit: int | None = None, as_of_date: str | None = None) -> str:
+def get_prediction_markets(
+    topic: str, limit: int | None = None, as_of_date: str | None = None
+) -> str:
     """Return live prediction-market probabilities for an event topic.
 
     Args:
@@ -136,11 +137,7 @@ def get_prediction_markets(topic: str, limit: int | None = None, as_of_date: str
         volume = m.get("volumeNum") or 0
         end_date = (m.get("endDate") or "")[:10]
         wk = m.get("oneWeekPriceChange")
-        wk_str = (
-            f", 1-week {wk * 100:+.1f}pp"
-            if isinstance(wk, (int, float)) and wk
-            else ""
-        )
+        wk_str = f", 1-week {wk * 100:+.1f}pp" if isinstance(wk, (int, float)) and wk else ""
         lines.append(
             f"- **{m.get('question')}** — {label} {prob:.0%} "
             f"(${volume:,.0f} volume, resolves {end_date}{wk_str})"

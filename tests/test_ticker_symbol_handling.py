@@ -21,6 +21,7 @@ class TickerSymbolHandlingTests(unittest.TestCase):
         # the descriptive one; the selection flow must use the one in prompts.
         import cli.prompts
         import cli.selections
+
         self.assertIs(cli.selections.get_ticker, cli.prompts.get_ticker)
 
 

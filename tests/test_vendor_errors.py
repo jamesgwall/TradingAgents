@@ -88,11 +88,14 @@ class RouterHandlesBaseTypesTests(unittest.TestCase):
         def _unconfigured(*a, **k):
             raise AlphaVantageNotConfiguredError("no key")
 
-        with mock.patch.dict(
-            router.VENDOR_METHODS,
-            {"get_stock_data": {"alpha_vantage": _unconfigured}},
-            clear=False,
-        ), self.assertRaises(AlphaVantageNotConfiguredError):
+        with (
+            mock.patch.dict(
+                router.VENDOR_METHODS,
+                {"get_stock_data": {"alpha_vantage": _unconfigured}},
+                clear=False,
+            ),
+            self.assertRaises(AlphaVantageNotConfiguredError),
+        ):
             router.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")
 
     def test_an_unavailable_vendor_keeps_absence_from_being_claimed(self):
@@ -102,14 +105,16 @@ class RouterHandlesBaseTypesTests(unittest.TestCase):
             raise VendorUnavailableError("Yahoo HTTP 429")
 
         def timed_out(*a, **k):
-            raise TimeoutError("read timed out")    # a vendor that does not type its failures
+            raise TimeoutError("read timed out")  # a vendor that does not type its failures
 
         def not_covered(*a, **k):
             raise NoMarketDataError("AAPL", "AAPL", "not covered")
 
-        for chain in ({"yfinance": throttled, "alpha_vantage": not_covered},
-                      {"yfinance": not_covered, "alpha_vantage": throttled},
-                      {"alpha_vantage": timed_out, "yfinance": not_covered}):
+        for chain in (
+            {"yfinance": throttled, "alpha_vantage": not_covered},
+            {"yfinance": not_covered, "alpha_vantage": throttled},
+            {"alpha_vantage": timed_out, "yfinance": not_covered},
+        ):
             set_config({"data_vendors": {"core_stock_apis": ",".join(chain)}})
             with mock.patch.dict(router.VENDOR_METHODS, {"get_stock_data": chain}, clear=False):
                 out = router.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")

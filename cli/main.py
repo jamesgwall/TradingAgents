@@ -1,6 +1,9 @@
 import sys
+from enum import StrEnum
+from typing import Annotated
 
 import typer
+from rich.markup import escape
 
 from cli.display import console
 from cli.models import AnalystType, AssetType
@@ -8,6 +11,7 @@ from cli.prompts import filter_analysts_for_asset_type, parse_analysts
 from cli.run import run_analysis
 from tradingagents.backtest import iter_grid, run_backtest, summarize
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.llm_clients.openai_client import SIGNED_IN_PROVIDERS
 from tradingagents.portfolio import load_portfolio
 
 # prompt_toolkit's win32 output module is importable only on Windows (it asserts
@@ -49,7 +53,9 @@ def analyze(
         help="JSON file with current holdings and cash, so the trader, risk and "
         "portfolio agents size against your actual position.",
     ),
-    ticker: str = typer.Option(None, "--ticker", help="Ticker to analyze, e.g. NVDA or 0700.HK; skips the prompt"),
+    ticker: str = typer.Option(
+        None, "--ticker", help="Ticker to analyze, e.g. NVDA or 0700.HK; skips the prompt"
+    ),
     date: str = typer.Option(None, "--date", help="Analysis date, YYYY-MM-DD; skips the prompt"),
     analysts: str = typer.Option(
         None, "--analysts", help="Comma-separated analysts, e.g. market,news; skips the prompt"
@@ -61,7 +67,8 @@ def analyze(
         None, "--show/--no-show", help="Show the full report at the end without asking"
     ),
     html: bool | None = typer.Option(
-        None, "--html/--no-html",
+        None,
+        "--html/--no-html",
         help="Save the report as one HTML page too, complete_report.html, without asking (default: yes)",
     ),
 ):
@@ -88,7 +95,14 @@ def analyze(
             raise typer.Exit(code=1) from None
 
     try:
-        flags = {"ticker": ticker, "date": date, "analysts": analysts, "save": save, "show": show, "html": html}
+        flags = {
+            "ticker": ticker,
+            "date": date,
+            "analysts": analysts,
+            "save": save,
+            "show": show,
+            "html": html,
+        }
         run_analysis(checkpoint=checkpoint, portfolio=portfolio_context, flags=flags)
     except _NO_CONSOLE_ERRORS:
         # A terminal with no console buffer cannot host the interactive prompts.
@@ -110,7 +124,9 @@ def backtest(
     end: str = typer.Option(..., "--end", help="Last analysis date, YYYY-MM-DD"),
     every: int = typer.Option(7, "--every", help="Days between analysis dates"),
     analysts: str = typer.Option(
-        None, "--analysts", help="Comma-separated analysts to run: market, sentiment, news, fundamentals; omit for all the asset type allows"
+        None,
+        "--analysts",
+        help="Comma-separated analysts to run: market, sentiment, news, fundamentals; omit for all the asset type allows",
     ),
     asset_type: str = typer.Option("stock", "--asset-type", help="stock or crypto"),
     portfolio: str = typer.Option(
@@ -128,8 +144,11 @@ def backtest(
         kind = AssetType(asset_type.strip().lower())
         # The analysts are named and checked as for an analysis; without a
         # choice, every analyst the asset type allows runs.
-        chosen = (parse_analysts(analysts, kind) if analysts
-                  else filter_analysts_for_asset_type(list(AnalystType), kind))
+        chosen = (
+            parse_analysts(analysts, kind)
+            if analysts
+            else filter_analysts_for_asset_type(list(AnalystType), kind)
+        )
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
@@ -142,8 +161,13 @@ def backtest(
     def show_progress(done, total, ticker, date):
         console.print(f"[dim][{done}/{total}] {ticker} {date}[/dim]")
 
-    kwargs = {"asset_type": kind.value, "portfolio": book, "run_id": run_id, "progress": show_progress,
-              "selected_analysts": [a.value for a in chosen]}
+    kwargs = {
+        "asset_type": kind.value,
+        "portfolio": book,
+        "run_id": run_id,
+        "progress": show_progress,
+        "selected_analysts": [a.value for a in chosen],
+    }
 
     try:
         result = run_backtest(names, dates, DEFAULT_CONFIG, **kwargs)
@@ -151,12 +175,51 @@ def backtest(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
     console.print(summarize(result).render())
-    console.print(f"\nRan {result.cells_run} cells, skipped {result.skipped}. Log: {result.log_path}")
+    console.print(
+        f"\nRan {result.cells_run} cells, skipped {result.skipped}. Log: {result.log_path}"
+    )
     console.print(f"Continue or settle this sweep: --run-id {result.run_id}")
     for ticker, date, reason in result.failures:
         console.print(f"[yellow]failed:[/yellow] {ticker} {date}: {reason}")
     for ticker, reason in result.settlement_failures:
         console.print(f"[yellow]unsettled:[/yellow] {ticker}: {reason}")
+
+
+# The plans `login` and `logout` take: the providers signed in to, not keyed.
+Plan = StrEnum("Plan", {name: name for name in SIGNED_IN_PROVIDERS})
+
+
+@app.command()
+def login(plan: Annotated[Plan, typer.Argument(help="The plan to sign in with")]):
+    """Sign in with your ChatGPT Plus or Pro plan, for the chatgpt provider."""
+    from tradingagents.llm_clients import chatgpt_auth
+
+    try:
+        # One unwrapped line, so the sign-in address can be copied whole.
+        email = chatgpt_auth.sign_in(
+            say=lambda line: console.print(line, soft_wrap=True, markup=False, highlight=False)
+        )
+    except chatgpt_auth.ChatGPTAuthError as exc:
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(code=1) from None
+    console.print(f"[green]Signed in to ChatGPT as {escape(email)}.[/green]")
+
+
+@app.command()
+def logout(plan: Annotated[Plan, typer.Argument(help="The plan to sign out of")]):
+    """Sign out of your ChatGPT plan: revoke this machine's access and forget it."""
+    from tradingagents.llm_clients import chatgpt_auth
+
+    outcome = chatgpt_auth.sign_out()
+    if outcome == "revoked":
+        console.print("Signed out of ChatGPT.")
+    elif outcome == "forgotten":
+        console.print(
+            "[yellow]Signed out here, but OpenAI could not be reached to revoke the sign-in; "
+            "it stays valid at OpenAI until it expires.[/yellow]"
+        )
+    else:
+        console.print("Not signed in to ChatGPT.")
 
 
 if __name__ == "__main__":

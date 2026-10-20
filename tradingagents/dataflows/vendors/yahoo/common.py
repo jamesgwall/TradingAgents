@@ -42,7 +42,8 @@ def _answered_empty(exc: Exception) -> bool:
     if isinstance(exc, YFPricesMissingError):
         reason = exc.yahoo_reason
         return "status_code" not in (exc.debug_info or "") and (
-            reason is None or reason.startswith("Data doesn't exist"))
+            reason is None or reason.startswith("Data doesn't exist")
+        )
     return getattr(getattr(exc, "response", None), "status_code", None) == 404
 
 
@@ -63,8 +64,10 @@ def yf_retry(func, max_retries=3, base_delay=2.0):
             return func()
         except YFRateLimitError as exc:
             if attempt < max_retries:
-                delay = base_delay * (2 ** attempt)
-                logger.warning(f"Yahoo Finance rate limited, retrying in {delay:.0f}s (attempt {attempt + 1}/{max_retries})")
+                delay = base_delay * (2**attempt)
+                logger.warning(
+                    f"Yahoo Finance rate limited, retrying in {delay:.0f}s (attempt {attempt + 1}/{max_retries})"
+                )
                 time.sleep(delay)
             else:
                 raise VendorUnavailableError(
@@ -73,4 +76,6 @@ def yf_retry(func, max_retries=3, base_delay=2.0):
         except Exception as exc:
             if _answered_empty(exc):
                 return None
-            raise VendorUnavailableError(f"Yahoo Finance request failed: {type(exc).__name__}") from exc
+            raise VendorUnavailableError(
+                f"Yahoo Finance request failed: {type(exc).__name__}"
+            ) from exc

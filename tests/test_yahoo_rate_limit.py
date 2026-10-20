@@ -42,14 +42,17 @@ def yahoo(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("tool, args", [
-    pytest.param(get_stock_data, ("AAPL", "2026-09-10", DAY), id="stock_data"),
-    pytest.param(get_indicators, ("AAPL", "rsi", DAY, 5), id="indicators"),
-    pytest.param(get_verified_market_snapshot, ("AAPL", DAY), id="snapshot"),
-    pytest.param(get_news, ("AAPL", "2026-09-10", DAY), id="news"),
-    pytest.param(get_global_news, (DAY, 7, 5), id="global_news"),
-    pytest.param(get_insider_transactions, ("AAPL",), id="insider"),
-])
+@pytest.mark.parametrize(
+    "tool, args",
+    [
+        pytest.param(get_stock_data, ("AAPL", "2026-09-10", DAY), id="stock_data"),
+        pytest.param(get_indicators, ("AAPL", "rsi", DAY, 5), id="indicators"),
+        pytest.param(get_verified_market_snapshot, ("AAPL", DAY), id="snapshot"),
+        pytest.param(get_news, ("AAPL", "2026-09-10", DAY), id="news"),
+        pytest.param(get_global_news, (DAY, 7, 5), id="global_news"),
+        pytest.param(get_insider_transactions, ("AAPL",), id="insider"),
+    ],
+)
 def test_a_rate_limit_that_outlasts_the_retries_is_reported_as_one(yahoo, tool, args):
     for name in ("history", "get_news"):
         yahoo.setattr(yf.Ticker, name, _rate_limited)
@@ -67,8 +70,10 @@ def test_a_rate_limit_that_outlasts_the_retries_is_reported_as_one(yahoo, tool, 
 def test_the_indicator_path_retries_a_rate_limit(yahoo):
     """The prices behind every indicator were fetched with ``yf.download``, which
     returns an empty frame for a 429, so they were never retried."""
-    bar = pd.DataFrame({"Open": [1.0], "High": [1.0], "Low": [1.0], "Close": [1.0],
-                        "Volume": [100]}, index=pd.DatetimeIndex([DAY], name="Date"))
+    bar = pd.DataFrame(
+        {"Open": [1.0], "High": [1.0], "Low": [1.0], "Close": [1.0], "Volume": [100]},
+        index=pd.DatetimeIndex([DAY], name="Date"),
+    )
     answers = [YFRateLimitError(), bar]
 
     def history(self, **kwargs):
@@ -131,11 +136,14 @@ def test_a_price_request_that_raises_is_unavailable_whether_or_not_yahoo_answers
 @pytest.mark.unit
 def test_a_price_request_that_fails_is_unavailable_even_when_yahoo_answers(monkeypatch, tmp_path):
     """A timeout says nothing about the symbol; a reachable host does not make it one."""
+
     def timed_out(**kwargs):
         raise TimeoutError("read timed out")
 
     monkeypatch.setattr(ohlcv, "get_config", lambda: {"data_cache_dir": str(tmp_path)})
-    monkeypatch.setattr(ohlcv.yf, "Ticker", lambda s: type("T", (), {"history": lambda self, **k: timed_out(**k)})())
+    monkeypatch.setattr(
+        ohlcv.yf, "Ticker", lambda s: type("T", (), {"history": lambda self, **k: timed_out(**k)})()
+    )
     monkeypatch.setattr(common, "vendor_reachable", lambda url: True)
 
     with pytest.raises(VendorUnavailableError):
@@ -159,12 +167,16 @@ def _yahoo_calls():
     today = get_current_date()
     return [
         pytest.param(lambda: fundamentals.get_fundamentals("AAPL", today), id="fundamentals"),
-        pytest.param(lambda: fundamentals.get_balance_sheet("AAPL", "quarterly", today), id="statement"),
+        pytest.param(
+            lambda: fundamentals.get_balance_sheet("AAPL", "quarterly", today), id="statement"
+        ),
         pytest.param(lambda: fundamentals.get_insider_transactions("AAPL", today), id="insider"),
         pytest.param(lambda: fundamentals.get_company_profile("AAPL"), id="profile"),
         pytest.param(lambda: news.get_news_yfinance("AAPL", "2026-09-10", DAY), id="news"),
         pytest.param(lambda: news.get_global_news_yfinance(DAY, 7, 5), id="global_news"),
-        pytest.param(lambda: market.get_YFin_data_online("AAPL", "2026-09-10", DAY), id="stock_data"),
+        pytest.param(
+            lambda: market.get_YFin_data_online("AAPL", "2026-09-10", DAY), id="stock_data"
+        ),
         pytest.param(lambda: market.get_closes("AAPL", "2026-09-10", DAY), id="closes"),
     ]
 
@@ -181,11 +193,25 @@ def test_a_yahoo_request_that_fails_is_unavailable_not_absent(yahoo, call):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("frame", [
-    pytest.param(pd.DataFrame(), id="unknown_symbol"),
-    pytest.param(pd.DataFrame({"Date": pd.to_datetime(["2026-09-25"]), "Open": [1.0], "High": [1.0],
-                               "Low": [1.0], "Close": [1.0], "Volume": [1]}), id="no_row_by_the_date"),
-])
+@pytest.mark.parametrize(
+    "frame",
+    [
+        pytest.param(pd.DataFrame(), id="unknown_symbol"),
+        pytest.param(
+            pd.DataFrame(
+                {
+                    "Date": pd.to_datetime(["2026-09-25"]),
+                    "Open": [1.0],
+                    "High": [1.0],
+                    "Low": [1.0],
+                    "Close": [1.0],
+                    "Volume": [1],
+                }
+            ),
+            id="no_row_by_the_date",
+        ),
+    ],
+)
 def test_a_snapshot_with_no_rows_is_reported_not_raised(yahoo, frame):
     """An exception out of a tool ends the run; no rows is an answer about the symbol."""
     from tradingagents.dataflows.errors import NoMarketDataError
@@ -225,7 +251,9 @@ def test_a_request_that_yfinance_would_swallow_is_unavailable(yahoo, call):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("call", [c for c in _yahoo_calls() if c.id in ("fundamentals", "stock_data", "insider")])
+@pytest.mark.parametrize(
+    "call", [c for c in _yahoo_calls() if c.id in ("fundamentals", "stock_data", "insider")]
+)
 def test_yahoo_answering_not_found_is_no_data(yahoo, call):
     """Yahoo answers an unknown symbol with HTTP 404: an answer about the symbol, not an outage."""
     from curl_cffi.requests import Response
@@ -241,18 +269,34 @@ def test_yahoo_answering_not_found_is_no_data(yahoo, call):
         out = call()
     except NoMarketDataError:
         return
-    assert out.startswith("No insider transactions"), out   # an empty filing list is not an error
+    assert out.startswith("No insider transactions"), out  # an empty filing list is not an error
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("debug, reason, absent", [
-    pytest.param(" (1d 2026-09-26 -> 2026-09-27)", None, True, id="a_chart_with_no_prices"),
-    pytest.param(" (1d 1970-01-01 -> 1970-02-01)", "Data doesn't exist for startDate = 18000, endDate = 2696400",
-                 True, id="yahoo_says_the_data_does_not_exist"),
-    pytest.param(" (1d 2026-09-21 -> 2026-09-25)(Yahoo status_code = 503)", None, False, id="an_http_error"),
-    pytest.param(" (1d 2026-09-21 -> 2026-09-25)", "Service temporarily unavailable", False,
-                 id="yahoo_reports_a_service_failure"),
-])
+@pytest.mark.parametrize(
+    "debug, reason, absent",
+    [
+        pytest.param(" (1d 2026-09-26 -> 2026-09-27)", None, True, id="a_chart_with_no_prices"),
+        pytest.param(
+            " (1d 1970-01-01 -> 1970-02-01)",
+            "Data doesn't exist for startDate = 18000, endDate = 2696400",
+            True,
+            id="yahoo_says_the_data_does_not_exist",
+        ),
+        pytest.param(
+            " (1d 2026-09-21 -> 2026-09-25)(Yahoo status_code = 503)",
+            None,
+            False,
+            id="an_http_error",
+        ),
+        pytest.param(
+            " (1d 2026-09-21 -> 2026-09-25)",
+            "Service temporarily unavailable",
+            False,
+            id="yahoo_reports_a_service_failure",
+        ),
+    ],
+)
 def test_only_yahoo_saying_a_window_has_no_prices_is_no_data(yahoo, debug, reason, absent):
     """yfinance raises YFPricesMissingError both when Yahoo answered with no prices
     and when its answer was an error; only the first is a fact about the symbol."""

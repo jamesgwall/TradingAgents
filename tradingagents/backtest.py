@@ -124,7 +124,7 @@ class BacktestSummary:
         if self.pending:
             lines.append("Pending cells are not scored above; re-run to settle them.")
         lines.append(
-            f"Alpha is measured over {self.holding} after each analysis date. "
+            f"Alpha is measured over {self.holding} from the first close after each analysis date. "
             "One model sampling per cell, and text feeds are not archived, so "
             "these figures are indicative rather than repeatable."
         )
@@ -192,7 +192,7 @@ def run_backtest(
 def summarize(source: BacktestResult | str | Path) -> BacktestSummary:
     """Score the settled decisions of a backtest, or of a memory log at a path, by rating."""
     if isinstance(source, BacktestResult):
-        path = source.log_path      # a run whose cells all failed wrote no log: nothing to score
+        path = source.log_path  # a run whose cells all failed wrote no log: nothing to score
     elif Path(source).is_file():
         path = Path(source)
     else:

@@ -4,6 +4,7 @@ requested end_date (and the current day) is actually included.
 Regressions for #986 (current-day OHLCV excluded) and #987 (requested end_date
 row omitted).
 """
+
 from types import SimpleNamespace
 
 import pandas as pd

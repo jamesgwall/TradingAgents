@@ -5,6 +5,7 @@ Regressions for #988 (explicit single-vendor config still fell back to others),
 #289 (fallback ran for unchosen vendors), and #989 (serious primary failures
 were swallowed without a trace).
 """
+
 import copy
 import unittest
 from unittest import mock
@@ -31,12 +32,14 @@ def _no_data(symbol, *a, **k):
 def _returns(value):
     def impl(symbol, *a, **k):
         return value
+
     return impl
 
 
 def _raises(exc):
     def impl(symbol, *a, **k):
         raise exc
+
     return impl
 
 
@@ -76,12 +79,14 @@ class VendorRoutingTests(unittest.TestCase):
         # never said whether it has the symbol, so the answer is unavailable,
         # and the failure is in the logs.
         set_config({"data_vendors": {"core_stock_apis": "yfinance,alpha_vantage"}})
-        with self._route({"yfinance": _raises(ValueError("boom")), "alpha_vantage": _no_data}), \
-                self.assertLogs("tradingagents.dataflows.router", level="WARNING") as cm:
+        with (
+            self._route({"yfinance": _raises(ValueError("boom")), "alpha_vantage": _no_data}),
+            self.assertLogs("tradingagents.dataflows.router", level="WARNING") as cm,
+        ):
             result = router.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")
         self.assertTrue(result.startswith("DATA_UNAVAILABLE"), result)
         joined = "\n".join(cm.output)
-        self.assertIn("boom", joined)            # the real error surfaced in logs
+        self.assertIn("boom", joined)  # the real error surfaced in logs
         self.assertIn("yfinance", joined)
 
     def test_unknown_configured_vendor_raises(self):
@@ -115,8 +120,7 @@ class VendorRoutingTests(unittest.TestCase):
         # A core category (single configured vendor) propagates the error so a
         # broken primary is loud, not silently degraded.
         set_config({"data_vendors": {"core_stock_apis": "yfinance"}})
-        with self._route({"yfinance": _raises(ValueError("boom"))}), \
-                self.assertRaises(ValueError):
+        with self._route({"yfinance": _raises(ValueError("boom"))}), self.assertRaises(ValueError):
             router.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")
 
 

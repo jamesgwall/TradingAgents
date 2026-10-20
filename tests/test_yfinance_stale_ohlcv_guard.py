@@ -78,8 +78,10 @@ class StaleGuardPropagationTests(unittest.TestCase):
             def history(self, start, end):
                 return stale
 
-        with mock.patch.object(yahoo_market.yf, "Ticker", DummyTicker), \
-                self.assertRaises(NoMarketDataError):
+        with (
+            mock.patch.object(yahoo_market.yf, "Ticker", DummyTicker),
+            self.assertRaises(NoMarketDataError),
+        ):
             yahoo_market.get_YFin_data_online("CB", "2026-06-01", "2026-06-11")
 
 
@@ -104,9 +106,7 @@ class StaleGuardRoutingTests(unittest.TestCase):
             {"get_stock_data": {"yfinance": _stale}},
             clear=False,
         ):
-            out = router.route_to_vendor(
-                "get_stock_data", "CB", "2026-06-01", "2026-06-11"
-            )
+            out = router.route_to_vendor("get_stock_data", "CB", "2026-06-01", "2026-06-11")
         self.assertIn("NO_DATA_AVAILABLE", out)
         self.assertIn("stale", out)  # the typed detail is surfaced to the agent
 

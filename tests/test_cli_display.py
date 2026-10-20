@@ -49,17 +49,34 @@ def test_the_other_shapes_are_unchanged(value, expected):
 
 def _state(ticker, final="评级: 买入"):
     return {
-        "company_of_interest": ticker, "trade_date": "2026-09-01",
-        "market_report": "市场", "sentiment_report": "情绪", "news_report": "新闻",
-        "fundamentals_report": "基本面", "investment_plan": "计划",
-        "trader_investment_plan": "交易计划", "final_trade_decision": final, "final_rating": "REVIEW",
-        "investment_debate_state": {"bull_history": "", "bear_history": "", "history": "",
-                                    "current_response": "", "count": 0},
-        "risk_debate_state": {"aggressive_history": "", "conservative_history": "",
-                              "neutral_history": "", "history": "",
-                              "latest_speaker": "", "current_aggressive_response": "",
-                              "current_conservative_response": "", "current_neutral_response": "",
-                              "count": 0},
+        "company_of_interest": ticker,
+        "trade_date": "2026-09-01",
+        "market_report": "市场",
+        "sentiment_report": "情绪",
+        "news_report": "新闻",
+        "fundamentals_report": "基本面",
+        "investment_plan": "计划",
+        "trader_investment_plan": "交易计划",
+        "final_trade_decision": final,
+        "final_rating": "REVIEW",
+        "investment_debate_state": {
+            "bull_history": "",
+            "bear_history": "",
+            "history": "",
+            "current_response": "",
+            "count": 0,
+        },
+        "risk_debate_state": {
+            "aggressive_history": "",
+            "conservative_history": "",
+            "neutral_history": "",
+            "history": "",
+            "latest_speaker": "",
+            "current_aggressive_response": "",
+            "current_conservative_response": "",
+            "current_neutral_response": "",
+            "count": 0,
+        },
     }
 
 
@@ -67,9 +84,17 @@ def _bare_graph(tmp_path):
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
     graph = object.__new__(TradingAgentsGraph)
-    graph.config = {"results_dir": str(tmp_path), "llm_provider": "openai", "deep_think_llm": "d",
-                    "quick_think_llm": "q", "max_debate_rounds": 1, "max_risk_discuss_rounds": 1,
-                    "output_language": "English", "data_vendors": {}, "tool_vendors": {}}
+    graph.config = {
+        "results_dir": str(tmp_path),
+        "llm_provider": "openai",
+        "deep_think_llm": "d",
+        "quick_think_llm": "q",
+        "max_debate_rounds": 1,
+        "max_risk_discuss_rounds": 1,
+        "output_language": "English",
+        "data_vendors": {},
+        "tool_vendors": {},
+    }
     graph.selected_analysts = ("market",)
     return graph
 
@@ -145,7 +170,9 @@ class AnalystWallTimeTrackerTests(unittest.TestCase):
         sync_analyst_tracker_from_chunk(tracker, {"news_report": "done"}, now=13.0)
         self.assertEqual(tracker.format_summary(), "Analyst wall time: News 3.00s")
 
-        sync_analyst_tracker_from_chunk(tracker, {"news_report": "done", "market_report": "done"}, now=18.0)
+        sync_analyst_tracker_from_chunk(
+            tracker, {"news_report": "done", "market_report": "done"}, now=18.0
+        )
         self.assertEqual(tracker.format_summary(), "Analyst wall time: Market 8.00s | News 3.00s")
 
 

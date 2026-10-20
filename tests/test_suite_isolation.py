@@ -6,13 +6,19 @@ import pytest
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("connect", [
-    lambda: socket.create_connection(("192.0.2.1", 80), timeout=1),
-    lambda: socket.socket().connect_ex(("192.0.2.1", 80)),
-    lambda: socket.getaddrinfo("example.com", 443),
-    # yfinance's HTTP client is libcurl, which never touches Python's sockets.
-    lambda: __import__("curl_cffi.requests").requests.Session().get("http://192.0.2.1", timeout=1),
-], ids=["connect", "connect_ex", "dns", "curl_cffi"])
+@pytest.mark.parametrize(
+    "connect",
+    [
+        lambda: socket.create_connection(("192.0.2.1", 80), timeout=1),
+        lambda: socket.socket().connect_ex(("192.0.2.1", 80)),
+        lambda: socket.getaddrinfo("example.com", 443),
+        # yfinance's HTTP client is libcurl, which never touches Python's sockets.
+        lambda: (
+            __import__("curl_cffi.requests").requests.Session().get("http://192.0.2.1", timeout=1)
+        ),
+    ],
+    ids=["connect", "connect_ex", "dns", "curl_cffi"],
+)
 def test_a_test_cannot_reach_the_network(connect):
     """A test that silently depends on a live vendor passes or fails with the
     machine it runs on; conftest refuses the connection instead."""

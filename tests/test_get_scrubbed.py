@@ -23,22 +23,36 @@ _LEAK = (
 def _response(status_code):
     response = mock.Mock(spec=requests.Response)
     response.status_code = status_code
-    response.raise_for_status.side_effect = requests.HTTPError(_LEAK) if status_code >= 400 else None
+    response.raise_for_status.side_effect = (
+        requests.HTTPError(_LEAK) if status_code >= 400 else None
+    )
     return response
 
 
 def _call(**kwargs):
-    return get_scrubbed("https://api.stlouisfed.org/fred/series",
-                        params={"api_key": _KEY}, timeout=5, secret=_KEY, **kwargs)
+    return get_scrubbed(
+        "https://api.stlouisfed.org/fred/series",
+        params={"api_key": _KEY},
+        timeout=5,
+        secret=_KEY,
+        **kwargs,
+    )
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("failure", [
-    {"side_effect": requests.ConnectionError(_LEAK)},
-    {"return_value": _response(500)},
-], ids=["transport", "status"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        {"side_effect": requests.ConnectionError(_LEAK)},
+        {"return_value": _response(500)},
+    ],
+    ids=["transport", "status"],
+)
 def test_the_key_is_masked_in_the_error(failure):
-    with mock.patch.object(requests, "get", **failure), pytest.raises(requests.RequestException) as caught:
+    with (
+        mock.patch.object(requests, "get", **failure),
+        pytest.raises(requests.RequestException) as caught,
+    ):
         _call()
     assert _KEY not in str(caught.value) and _KEY not in repr(caught.value.args)
     assert "api_key=***" in str(caught.value)
@@ -50,7 +64,10 @@ def test_nothing_that_holds_the_url_travels_with_the_error():
     leaky = requests.ConnectionError(_LEAK)
     leaky.request = mock.Mock(url=f"https://x.invalid/?api_key={_KEY}")
     leaky.response = mock.Mock(url=f"https://x.invalid/?api_key={_KEY}")
-    with mock.patch.object(requests, "get", side_effect=leaky), pytest.raises(requests.ConnectionError) as caught:
+    with (
+        mock.patch.object(requests, "get", side_effect=leaky),
+        pytest.raises(requests.ConnectionError) as caught,
+    ):
         _call()
     error = caught.value
     assert error.request is None and error.response is None

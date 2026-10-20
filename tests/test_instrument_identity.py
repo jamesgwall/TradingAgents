@@ -59,7 +59,9 @@ class ResolveInstrumentIdentityTests(unittest.TestCase):
         # A long process (a backtest) must not run every later cell without an
         # identity because one request failed.
         with patch("tradingagents.dataflows.vendors.yahoo.market.yf.Ticker") as mock:
-            type(mock.return_value).info = property(lambda self: (_ for _ in ()).throw(TimeoutError()))
+            type(mock.return_value).info = property(
+                lambda self: (_ for _ in ()).throw(TimeoutError())
+            )
             self.assertEqual(resolve_instrument_identity("TOTDY"), {})
             type(mock.return_value).info = {"longName": "TOTO LTD."}
             self.assertEqual(resolve_instrument_identity("TOTDY")["company_name"], "TOTO LTD.")

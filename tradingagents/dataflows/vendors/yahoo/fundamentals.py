@@ -22,7 +22,7 @@ _MAIN_UNIT = {"GBp": "GBP", "GBX": "GBP", "ZAc": "ZAR", "ILA": "ILS"}
 
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol of the company"],
-    as_of_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None
+    as_of_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None,
 ):
     """Get company fundamentals overview from yfinance.
 
@@ -107,8 +107,10 @@ def get_fundamentals(
         ("Operating Margin", info.get("operatingMargins")),
         ("Return on Equity", info.get("returnOnEquity")),
         ("Return on Assets", info.get("returnOnAssets")),
-        ("Debt to Equity", None if debt_to_equity is None
-         else f"{debt_to_equity}% ({debt_to_equity / 100:.2f}x)"),
+        (
+            "Debt to Equity",
+            None if debt_to_equity is None else f"{debt_to_equity}% ({debt_to_equity / 100:.2f}x)",
+        ),
         ("Current Ratio", info.get("currentRatio")),
         ("Book Value", money("bookValue", main)),
         ("Free Cash Flow", money("freeCashflow", reported)),
@@ -145,16 +147,18 @@ def _statement(ticker, freq, as_of_date, title, quarterly_attr, annual_attr) -> 
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
+    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
 ):
     """Get balance sheet data from yfinance."""
-    return _statement(ticker, freq, as_of_date, "Balance Sheet", "quarterly_balance_sheet", "balance_sheet")
+    return _statement(
+        ticker, freq, as_of_date, "Balance Sheet", "quarterly_balance_sheet", "balance_sheet"
+    )
 
 
 def get_cashflow(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
+    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
 ):
     """Get cash flow data from yfinance."""
     return _statement(ticker, freq, as_of_date, "Cash Flow", "quarterly_cashflow", "cashflow")
@@ -163,10 +167,12 @@ def get_cashflow(
 def get_income_statement(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
+    as_of_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
 ):
     """Get income statement data from yfinance."""
-    return _statement(ticker, freq, as_of_date, "Income Statement", "quarterly_income_stmt", "income_stmt")
+    return _statement(
+        ticker, freq, as_of_date, "Income Statement", "quarterly_income_stmt", "income_stmt"
+    )
 
 
 def get_insider_transactions(
@@ -184,7 +190,9 @@ def get_insider_transactions(
     # so report it plainly rather than treating the symbol as invalid.
     if data is None or data.empty:
         if not vendor_reachable(YAHOO_HOST):
-            raise VendorUnavailableError("Yahoo Finance is unreachable; insider filings were not retrieved")
+            raise VendorUnavailableError(
+                "Yahoo Finance is unreachable; insider filings were not retrieved"
+            )
         return f"No insider transactions reported for symbol '{canonical}'"
 
     return f"# Insider Transactions data for {canonical}\n" + data.to_csv()

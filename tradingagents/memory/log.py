@@ -180,12 +180,16 @@ class TradingMemoryLog:
                     fields = [f.strip() for f in tag_line[1:-1].split("|")]
                     rating = fields[2]
                     new_tag = self._resolved_tag(
-                        trade_date, ticker, rating, raw_pct, alpha_pct, holding_days, resolution_date
+                        trade_date,
+                        ticker,
+                        rating,
+                        raw_pct,
+                        alpha_pct,
+                        holding_days,
+                        resolution_date,
                     )
                     rest = "\n".join(lines[1:])
-                    new_blocks.append(
-                        f"{new_tag}\n\n{rest.lstrip()}\n\nREFLECTION:\n{reflection}"
-                    )
+                    new_blocks.append(f"{new_tag}\n\n{rest.lstrip()}\n\nREFLECTION:\n{reflection}")
                     updated = True
                 else:
                     new_blocks.append(block)
@@ -233,8 +237,13 @@ class TradingMemoryLog:
                         raw_pct = f"{upd['raw_return']:+.1%}"
                         alpha_pct = f"{upd['alpha_return']:+.1%}"
                         new_tag = self._resolved_tag(
-                            trade_date, ticker, rating, raw_pct, alpha_pct,
-                            upd["holding_days"], upd.get("resolution_date"),
+                            trade_date,
+                            ticker,
+                            rating,
+                            raw_pct,
+                            alpha_pct,
+                            upd["holding_days"],
+                            upd.get("resolution_date"),
                         )
                         rest = "\n".join(lines[1:])
                         new_blocks.append(
@@ -322,7 +331,7 @@ class TradingMemoryLog:
         resolved = None
         for f in fields[6:]:
             if f.startswith("resolved:"):
-                resolved = f[len("resolved:"):].strip()
+                resolved = f[len("resolved:") :].strip()
         entry = {
             "date": fields[0],
             "ticker": fields[1],

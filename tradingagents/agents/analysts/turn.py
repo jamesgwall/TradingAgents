@@ -33,10 +33,14 @@ def _as_text(messages):
     for message in messages:
         if isinstance(message, AIMessage) and message.tool_calls:
             said = message.content if isinstance(message.content, str) else ""
-            calls = "; ".join(f"{c['name']}({json.dumps(c['args'], default=str)})" for c in message.tool_calls)
+            calls = "; ".join(
+                f"{c['name']}({json.dumps(c['args'], default=str)})" for c in message.tool_calls
+            )
             written.append(AIMessage(content=f"{said}\n[Called {calls}]".strip()))
         elif isinstance(message, ToolMessage):
-            written.append(HumanMessage(content=f"[{message.name or 'Tool'} returned]\n{message.content}"))
+            written.append(
+                HumanMessage(content=f"[{message.name or 'Tool'} returned]\n{message.content}")
+            )
         else:
             written.append(message)
     return written

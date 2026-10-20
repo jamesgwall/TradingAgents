@@ -149,9 +149,7 @@ class MessageBuffer:
                 "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",
             }
-            self.current_report = (
-                f"### {section_titles[latest_section]}\n{latest_content}"
-            )
+            self.current_report = f"### {section_titles[latest_section]}\n{latest_content}"
 
 
 message_buffer = MessageBuffer()
@@ -164,19 +162,15 @@ def create_layout():
         Layout(name="main"),
         Layout(name="footer", size=3),
     )
-    layout["main"].split_column(
-        Layout(name="upper", ratio=3), Layout(name="analysis", ratio=5)
-    )
-    layout["upper"].split_row(
-        Layout(name="progress", ratio=2), Layout(name="messages", ratio=3)
-    )
+    layout["main"].split_column(Layout(name="upper", ratio=3), Layout(name="analysis", ratio=5))
+    layout["upper"].split_row(Layout(name="progress", ratio=2), Layout(name="messages", ratio=3))
     return layout
 
 
 def format_tokens(n):
     """Format token count for display."""
     if n >= 1000:
-        return f"{n/1000:.1f}k"
+        return f"{n / 1000:.1f}k"
     return str(n)
 
 
@@ -231,9 +225,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
         first_agent = agents[0]
         status = message_buffer.agent_status.get(first_agent, "pending")
         if status == "in_progress":
-            spinner = Spinner(
-                "dots", text="[blue]in_progress[/blue]", style="bold cyan"
-            )
+            spinner = Spinner("dots", text="[blue]in_progress[/blue]", style="bold cyan")
             status_cell = spinner
         else:
             status_color = {
@@ -247,9 +239,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
         for agent in agents[1:]:
             status = message_buffer.agent_status.get(agent, "pending")
             if status == "in_progress":
-                spinner = Spinner(
-                    "dots", text="[blue]in_progress[/blue]", style="bold cyan"
-                )
+                spinner = Spinner("dots", text="[blue]in_progress[/blue]", style="bold cyan")
                 status_cell = spinner
             else:
                 status_color = {
@@ -394,7 +384,9 @@ def display_complete_report(final_state):
     if analysts:
         console.print(Panel("[bold]I. Analyst Team Reports[/bold]", border_style="cyan"))
         for title, content in analysts:
-            console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
+            console.print(
+                Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2))
+            )
 
     # II. Research Team Reports
     if final_state.get("investment_debate_state"):
@@ -409,12 +401,21 @@ def display_complete_report(final_state):
         if research:
             console.print(Panel("[bold]II. Research Team Decision[/bold]", border_style="magenta"))
             for title, content in research:
-                console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
+                console.print(
+                    Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2))
+                )
 
     # III. Trading Team
     if final_state.get("trader_investment_plan"):
         console.print(Panel("[bold]III. Trading Team Plan[/bold]", border_style="yellow"))
-        console.print(Panel(Markdown(final_state["trader_investment_plan"]), title="Trader", border_style="blue", padding=(1, 2)))
+        console.print(
+            Panel(
+                Markdown(final_state["trader_investment_plan"]),
+                title="Trader",
+                border_style="blue",
+                padding=(1, 2),
+            )
+        )
 
     # IV. Risk Management Team
     if final_state.get("risk_debate_state"):
@@ -427,14 +428,25 @@ def display_complete_report(final_state):
         if risk.get("neutral_history"):
             risk_reports.append(("Neutral Analyst", risk["neutral_history"]))
         if risk_reports:
-            console.print(Panel("[bold]IV. Risk Management Team Decision[/bold]", border_style="red"))
+            console.print(
+                Panel("[bold]IV. Risk Management Team Decision[/bold]", border_style="red")
+            )
             for title, content in risk_reports:
-                console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
+                console.print(
+                    Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2))
+                )
 
     # V. Portfolio Manager Decision
     if final_state.get("final_trade_decision"):
         console.print(Panel("[bold]V. Portfolio Manager Decision[/bold]", border_style="green"))
-        console.print(Panel(Markdown(final_state["final_trade_decision"]), title="Portfolio Manager", border_style="blue", padding=(1, 2)))
+        console.print(
+            Panel(
+                Markdown(final_state["final_trade_decision"]),
+                title="Portfolio Manager",
+                border_style="blue",
+                padding=(1, 2),
+            )
+        )
 
 
 def update_research_team_status(status):
@@ -492,11 +504,7 @@ def update_analyst_statuses(message_buffer, chunk, wall_time_tracker=None):
             message_buffer.update_agent_status(agent_name, "in_progress")
             all_filed = False
 
-    if (
-        all_filed
-        and selected
-        and message_buffer.agent_status.get("Bull Researcher") == "pending"
-    ):
+    if all_filed and selected and message_buffer.agent_status.get("Bull Researcher") == "pending":
         message_buffer.update_agent_status("Bull Researcher", "in_progress")
 
 
@@ -504,6 +512,7 @@ def extract_content_string(content):
     """Extract string content from various message formats.
     Returns None if no meaningful text content is found.
     """
+
     def is_empty(val):
         """Whether a value carries nothing to show.
 
@@ -522,16 +531,17 @@ def extract_content_string(content):
         return content.strip()
 
     if isinstance(content, dict):
-        text = content.get('text', '')
+        text = content.get("text", "")
         return text.strip() if not is_empty(text) else None
 
     if isinstance(content, list):
         text_parts = [
-            item.get('text', '').strip() if isinstance(item, dict) and item.get('type') == 'text'
-            else (item.strip() if isinstance(item, str) else '')
+            item.get("text", "").strip()
+            if isinstance(item, dict) and item.get("type") == "text"
+            else (item.strip() if isinstance(item, str) else "")
             for item in content
         ]
-        result = ' '.join(t for t in text_parts if t and not is_empty(t))
+        result = " ".join(t for t in text_parts if t and not is_empty(t))
         return result if result else None
 
     return str(content).strip() if not is_empty(content) else None
@@ -546,7 +556,7 @@ def classify_message_type(message) -> tuple[str, str | None]:
     """
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-    content = extract_content_string(getattr(message, 'content', None))
+    content = extract_content_string(getattr(message, "content", None))
 
     if isinstance(message, HumanMessage):
         if content and content.strip() == "Continue":
@@ -567,7 +577,7 @@ def format_tool_args(args, max_length=80) -> str:
     """Format tool arguments for terminal display."""
     result = str(args)
     if len(result) > max_length:
-        return result[:max_length - 3] + "..."
+        return result[: max_length - 3] + "..."
     return result
 
 

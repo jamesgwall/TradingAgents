@@ -14,6 +14,7 @@ _ANY_MODEL_PROVIDERS = (
     "groq",
     "nvidia",
     "bedrock",
+    "chatgpt",
 )
 
 VALID_MODELS = {

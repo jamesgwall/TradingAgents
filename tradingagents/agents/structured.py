@@ -77,7 +77,8 @@ def invoke_structured(structured_llm: Any | None, prompt: Any, agent_name: str) 
     except Exception as exc:
         logger.warning(
             "%s: structured-output invocation failed (%s); retrying once as free text",
-            agent_name, exc,
+            agent_name,
+            exc,
         )
         return None
 

@@ -35,10 +35,14 @@ DEFAULT_TOP_K = 8
 
 def _embed_text(text: str, ollama_url: str) -> list[float]:
     base = ollama_url.rstrip("/")
-    payload = json.dumps({
-        "model": EMBED_MODEL, "input": [text], "dimensions": EMBED_DIM,
-        "options": {"num_ctx": 4096},
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": EMBED_MODEL,
+            "input": [text],
+            "dimensions": EMBED_DIM,
+            "options": {"num_ctx": 4096},
+        }
+    ).encode()
     req = urllib.request.Request(
         f"{base}/api/embed",
         data=payload,

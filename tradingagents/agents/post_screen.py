@@ -26,12 +26,12 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://api.typesafe.ai"
 _DEFAULT_MODEL = "jev-latest"
-_RETRY_STATUSES = (429, 529)    # rate limited, overloaded: back off and retry
+_RETRY_STATUSES = (429, 529)  # rate limited, overloaded: back off and retry
 _TRANSIENT = (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError)
 _ATTEMPTS = 3
 _MAX_WAIT = 30.0
 _TIMEOUT = 15.0
-_WORKERS = 16                   # well inside the documented 1,200 requests per minute
+_WORKERS = 16  # well inside the documented 1,200 requests per minute
 
 # A post is dropped only on a clear "not about it"; the uncertain middle stays.
 _OFF_TOPIC_BELOW = 0.3
@@ -45,7 +45,7 @@ QUESTIONS = {
         "criteria": {
             "true": "`post` discusses `instrument` itself.",
             "false": "`post` names `instrument` only in passing or in a list of tickers, is spam or "
-                     "promotion, or is about a different company.",
+            "promotion, or is about a different company.",
         },
     },
     "stance": {
@@ -55,7 +55,7 @@ QUESTIONS = {
             "bullish": "The author expects `instrument`'s stock to rise, or is buying or holding it long.",
             "bearish": "The author expects `instrument`'s stock to fall, or is selling or shorting it.",
             "neutral": "The author gives no view of their own on `instrument`'s stock: a question, "
-                       "news without opinion, or someone else's view quoted.",
+            "news without opinion, or someone else's view quoted.",
         },
     },
 }
@@ -81,7 +81,9 @@ def system_one(state, questions: dict) -> dict[str, dict]:
     backoff, retry_after = 1.0, None
     for attempt in range(_ATTEMPTS):
         if attempt:
-            time.sleep(retry_after if retry_after is not None else backoff * random.uniform(0.8, 1.2))
+            time.sleep(
+                retry_after if retry_after is not None else backoff * random.uniform(0.8, 1.2)
+            )
             backoff *= 2
         try:
             response = requests.post(_url(), json=body, headers=headers, timeout=_TIMEOUT)
@@ -150,7 +152,9 @@ def jev_screen(ticker: str):
             return _unscreened(instrument, posts, "malformed response")
         except TypeSafeError as exc:
             return _unscreened(instrument, posts, str(exc))
-        counts = ", ".join(f"{stances.count(s)} {s}" for s in ("bullish", "bearish", "neutral", "unclear"))
+        counts = ", ".join(
+            f"{stances.count(s)} {s}" for s in ("bullish", "bearish", "neutral", "unclear")
+        )
         return keep, (
             f"Screened by Jev: {len(stances)} of the {len(posts)} posts fetched are about "
             f"{instrument}; their stance on its stock: {counts}."

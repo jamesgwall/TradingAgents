@@ -21,7 +21,9 @@ PAST = "2024-03-14"
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("statement", [yahoo.get_balance_sheet, yahoo.get_cashflow, yahoo.get_income_statement])
+@pytest.mark.parametrize(
+    "statement", [yahoo.get_balance_sheet, yahoo.get_cashflow, yahoo.get_income_statement]
+)
 def test_yahoo_withholds_statements_from_a_past_run_without_asking(statement):
     with mock.patch.object(yahoo, "yf_retry", side_effect=AssertionError("requested")):
         out = statement("SAP.DE", "quarterly", PAST)
@@ -29,10 +31,18 @@ def test_yahoo_withholds_statements_from_a_past_run_without_asking(statement):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("statement", [alpha_vantage.get_balance_sheet, alpha_vantage.get_cashflow,
-                                       alpha_vantage.get_income_statement])
+@pytest.mark.parametrize(
+    "statement",
+    [
+        alpha_vantage.get_balance_sheet,
+        alpha_vantage.get_cashflow,
+        alpha_vantage.get_income_statement,
+    ],
+)
 def test_alpha_vantage_withholds_statements_from_a_past_run_without_asking(statement):
-    with mock.patch.object(alpha_vantage, "_make_api_request", side_effect=AssertionError("requested")):
+    with mock.patch.object(
+        alpha_vantage, "_make_api_request", side_effect=AssertionError("requested")
+    ):
         out = statement("IBM", "quarterly", PAST)
     assert "withheld" in out and PAST in out
 
@@ -53,8 +63,10 @@ def test_a_current_run_is_still_served_yahoo_statements():
 def test_statements_come_from_sec_edgar_first_by_default():
     set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))
     served = []
-    chain = {name: (lambda *a, _n=name, **k: served.append(_n) or f"{_n} statements")
-             for name in router.VENDOR_METHODS["get_balance_sheet"]}
+    chain = {
+        name: (lambda *a, _n=name, **k: served.append(_n) or f"{_n} statements")
+        for name in router.VENDOR_METHODS["get_balance_sheet"]
+    }
     with mock.patch.dict(router.VENDOR_METHODS, {"get_balance_sheet": chain}):
         router.route_to_vendor("get_balance_sheet", "AAPL", "quarterly", PAST)
     assert served == ["sec_edgar"]
@@ -73,6 +85,8 @@ def test_yahoo_withholds_insider_trades_from_a_past_run_without_asking():
 def test_alpha_vantage_withholds_insider_trades_from_a_past_run_without_asking():
     from tradingagents.dataflows.vendors.alpha_vantage import news as alpha_vantage_news
 
-    with mock.patch.object(alpha_vantage_news, "_make_api_request", side_effect=AssertionError("requested")):
+    with mock.patch.object(
+        alpha_vantage_news, "_make_api_request", side_effect=AssertionError("requested")
+    ):
         out = alpha_vantage_news.get_insider_transactions("IBM", PAST)
     assert "withheld" in out and PAST in out
