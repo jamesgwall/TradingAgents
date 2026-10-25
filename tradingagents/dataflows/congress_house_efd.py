@@ -83,7 +83,7 @@ _UA = "tradingagents/0.2 (+https://github.com/TauricResearch/TradingAgents)"
 # Local-LLM structurer model. Gemma ``e4b-it-qat`` structured a real complex
 # e-filed PTR at 18/18 transactions correct in prototyping, beating larger
 # variants. Override without code edits via CONGRESS_STRUCTURER_MODEL.
-DEFAULT_STRUCTURER_MODEL = "gemma3n:e4b-it-qat"
+DEFAULT_STRUCTURER_MODEL = "gemma4:e4b-it-qat"
 DEFAULT_STRUCTURER_TIMEOUT = 45  # seconds
 MAX_PDF_TEXT_LENGTH = 20000  # max characters before prompt truncation
 

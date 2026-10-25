@@ -163,9 +163,9 @@ class TestFetcher:
         assert report_post["url"].endswith(REPORT_DATA_PATH)
 
         # PTR filter + window were sent on the report-data query.
-        assert report_post["data"]["report_types[]"] == [PTR_REPORT_TYPE]
-        assert report_post["data"]["submitted_start_date"] == "04/01/2026"
-        assert report_post["data"]["submitted_end_date"] == "04/30/2026"
+        assert report_post["data"]["report_types"] == json.dumps([int(PTR_REPORT_TYPE)])
+        assert report_post["data"]["submitted_start_date"] == "04/01/2026 00:00:00"
+        assert report_post["data"]["submitted_end_date"] == "04/30/2026 23:59:59"
         # CSRF token (refreshed cookie) accompanies the AJAX POST.
         assert report_post["headers"]["X-CSRFToken"] == "COOKIETOKEN"
 
