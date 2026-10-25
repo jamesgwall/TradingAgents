@@ -1,3 +1,5 @@
+name: tradingagents
+
 services:
   tradingagents:
     build: .
@@ -33,4 +35,6 @@ services:
 
 volumes:
   tradingagents_data:
+    name: tradingagents_tradingagents_data
   ollama_data:
+    name: tradingagents_ollama_data
