@@ -4,7 +4,7 @@ Each dated tool takes the run's ``trade_date`` from graph state (``InjectedState
 and never serves data past it, whatever date the model asks for.
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
@@ -116,7 +116,7 @@ def get_fundamentals(
 @tool
 def get_balance_sheet(
     ticker: Annotated[str, InjectedState("company_of_interest")],
-    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    freq: Annotated[Literal["annual", "quarterly"], "reporting frequency"] = "quarterly",
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
@@ -135,7 +135,7 @@ def get_balance_sheet(
 @tool
 def get_cashflow(
     ticker: Annotated[str, InjectedState("company_of_interest")],
-    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    freq: Annotated[Literal["annual", "quarterly"], "reporting frequency"] = "quarterly",
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
@@ -154,7 +154,7 @@ def get_cashflow(
 @tool
 def get_income_statement(
     ticker: Annotated[str, InjectedState("company_of_interest")],
-    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    freq: Annotated[Literal["annual", "quarterly"], "reporting frequency"] = "quarterly",
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:

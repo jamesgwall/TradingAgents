@@ -25,7 +25,18 @@ def _capture_kwargs(monkeypatch):
 class TestEffortGate:
     @pytest.mark.parametrize(
         "model",
-        ["claude-haiku-4-5", "claude-haiku-5-0", "claude-haiku-4-7-preview"],
+        [
+            "claude-haiku-4-5",
+            "claude-haiku-5-0",
+            "claude-haiku-4-7-preview",
+            # Sonnet 4.5 (and earlier) 400 on effort — only Sonnet 4.6+ supports it.
+            "claude-sonnet-4-5",
+            "claude-sonnet-4-0",
+            # A dated snapshot's date is not its minor version (#1585).
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "claude-sonnet-4-5-20250929",
+        ],
     )
     def test_haiku_does_not_receive_effort(self, monkeypatch, model):
         captured = _capture_kwargs(monkeypatch)
@@ -39,6 +50,7 @@ class TestEffortGate:
             "claude-opus-4-6",
             "claude-opus-4-7",
             "claude-sonnet-4-6",
+            "claude-opus-4-5-20251101",
         ],
     )
     def test_current_opus_and_sonnet_receive_effort(self, monkeypatch, model):

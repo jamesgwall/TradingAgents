@@ -127,6 +127,8 @@ def write_report_tree(
     ``settings`` (``TradingAgentsGraph.run_settings()``) adds what produced the run
     to the report's header. ``html`` also writes ``complete_report.html``, one
     self-contained page of the same report (#1419).
+    Reusing a directory replaces the generated report files, removing sections
+    absent from this run and disabled HTML. Other files and directories are kept.
     """
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -148,4 +150,18 @@ def write_report_tree(
         (save_path / "complete_report.html").write_text(
             render_report(ticker, final_state, settings, parts), encoding="utf-8"
         )
+    else:
+        (save_path / "complete_report.html").unlink(missing_ok=True)
+
+    # Reconcile only the filenames owned by this writer; never clear the tree,
+    # since callers may keep notes or other artifacts alongside the reports.
+    current_files = {
+        (folder, filename)
+        for _heading, folder, written in parts
+        for _agent, filename, _text in written
+    }
+    for _heading, folder, agents in _SECTIONS:
+        for _agent, filename, _path in agents:
+            if (folder, filename) not in current_files:
+                (save_path / folder / filename).unlink(missing_ok=True)
     return save_path / "complete_report.md"
